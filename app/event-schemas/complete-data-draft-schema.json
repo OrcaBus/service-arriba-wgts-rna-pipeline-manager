@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "s3Uri": {
+      "pattern": "^s3://[a-zA-Z0-9_-]*/[a-zA-Z0-9_/-]*"
+    },
+    "s3UriDirectory": {
+      "pattern": "^s3://[a-zA-Z0-9_-]*/[a-zA-Z0-9_/-]*/$"
+    },
+    "alignmentData": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "bamInput": {
+              "$ref": "#/$defs/s3Uri"
+            }
+          },
+          "required": ["bamInput"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cramInput": {
+              "$ref": "#/$defs/s3Uri"
+            }
+          },
+          "required": ["cramInput"]
+        }
+      ]
+    },
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "sampleName": {
+          "type": "string"
+        },
+        "alignmentData": {
+          "$ref": "#/$defs/alignmentData"
+        },
+        "referenceFasta": {
+          "$ref": "#/$defs/s3Uri"
+        },
+        "annotationGtf": {
+          "$ref": "#/$defs/s3Uri"
+        },
+        "cytobandsTsv": {
+          "$ref": "#/$defs/s3Uri"
+        },
+        "proteinDomainsGff3": {
+          "$ref": "#/$defs/s3Uri"
+        },
+        "blacklistTsv": {
+          "$ref": "#/$defs/s3Uri"
+        }
+      },
+      "required": [
+        "sampleName",
+        "alignmentData",
+        "referenceFasta",
+        "annotationGtf",
+        "cytobandsTsv",
+        "proteinDomainsGff3",
+        "blacklistTsv"
+      ],
+      "allowAdditionalProperties": true
+    },
+    "tags": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string"
+        },
+        "fastqRgidList": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "individualId": {
+          "type": "string"
+        }
+      },
+      "required": ["libraryId", "fastqRgidList"]
+    },
+    "engineParameters": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "pipelineId": {
+          "type": "string"
+        },
+        "outputUri": {
+          "$ref": "#/$defs/s3UriDirectory"
+        },
+        "logsUri": {
+          "$ref": "#/$defs/s3UriDirectory"
+        }
+      },
+      "required": ["projectId", "pipelineId", "outputUri", "logsUri"],
+      "allowAdditionalProperties": true
+    }
+  },
+  "type": "object",
+  "properties": {
+    "inputs": {
+      "$ref": "#/$defs/inputs"
+    },
+    "tags": {
+      "$ref": "#/$defs/tags"
+    },
+    "engineParameters": {
+      "$ref": "#/$defs/engineParameters"
+    }
+  },
+  "required": ["inputs", "tags", "engineParameters"]
+}
