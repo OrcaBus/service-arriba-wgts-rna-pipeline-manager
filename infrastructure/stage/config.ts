@@ -123,5 +123,8 @@ export const getStatelessStackProps = (stage: StageName): StatelessApplicationSt
 
     // Is new workflow manager deployed
     isNewWorkflowManagerDeployed: NEW_WORKFLOW_MANAGER_IS_DEPLOYED[stage],
+
+    // SSM Parameter paths
+    ssmParameterPaths: getSsmParameterPaths(),
   };
 };

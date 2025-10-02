@@ -2,6 +2,7 @@
 import path from 'path';
 import { StageName } from '@orcabus/platform-cdk-constructs/shared-config/accounts';
 import { AnnotationVersionType, GenomeVersionType, WorkflowVersionType } from './interfaces';
+import { DATA_SCHEMA_REGISTRY_NAME } from '@orcabus/platform-cdk-constructs/shared-config/event-bridge';
 
 /* Directory constants */
 export const APP_ROOT = path.join(__dirname, '../../app');
@@ -31,7 +32,7 @@ export const WORKFLOW_VERSION_TO_DEFAULT_ICAV2_PIPELINE_ID_MAP: Record<
 };
 
 export const ANNOTATION_VERSION_TO_ANNOTATION_PATHS_MAP: Record<AnnotationVersionType, string> = {
-  '44': 's3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/gencode/hg38/v44/gencode.v44.annotation.gtf.gz',
+  '44': 's3://reference-data-503977275616-ap-southeast-2/refdata/gencode/hg38/v44/gencode.v44.annotation.gtf.gz',
 };
 
 export const WORKFLOW_VERSION_TO_DEFAULT_ANNOTATION_VERSION_MAP: Record<
@@ -43,7 +44,7 @@ export const WORKFLOW_VERSION_TO_DEFAULT_ANNOTATION_VERSION_MAP: Record<
 
 export const CYTOBANDS_VERSION_TO_CYTOBANDS_PATHS_MAP: Record<WorkflowVersionType, string> = {
   '2.5.0':
-    's3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/arriba/2-5-0/cytobands_hg38_GRCh38_v2.5.0.tsv',
+    's3://reference-data-503977275616-ap-southeast-2/refdata/arriba/2-5-0/cytobands_hg38_GRCh38_v2.5.0.tsv',
 };
 
 export const PROTEIN_DOMAINS_VERSION_TO_PROTEIN_DOMAINS_PATHS_MAP: Record<
@@ -51,19 +52,19 @@ export const PROTEIN_DOMAINS_VERSION_TO_PROTEIN_DOMAINS_PATHS_MAP: Record<
   string
 > = {
   '2.5.0':
-    's3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/arriba/2-5-0/protein_domains_hg38_GRCh38_v2.5.0.gff3',
+    's3://reference-data-503977275616-ap-southeast-2/refdata/arriba/2-5-0/protein_domains_hg38_GRCh38_v2.5.0.gff3',
 };
 
 export const BLACKLIST_VERSION_TO_BLACKLIST_PATHS_MAP: Record<WorkflowVersionType, string> = {
   '2.5.0':
-    's3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/arriba/2-5-0/blacklist_hg38_GRCh38_v2.5.0.tsv.gz',
+    's3://reference-data-503977275616-ap-southeast-2/refdata/arriba/2-5-0/blacklist_hg38_GRCh38_v2.5.0.tsv.gz',
 };
 
 export const REFERENCE_GENOME_VERSION_TO_REFERENCE_GENOME_PATHS_MAP: Record<
   GenomeVersionType,
   string
 > = {
-  hg38: 's3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/genomes/hg38/hg38.fa',
+  hg38: 's3://reference-data-503977275616-ap-southeast-2/refdata/genomes/GRCh38_umccr/GRCh38_full_analysis_set_plus_decoy_hla.fa',
 };
 
 export const WORKFLOW_VERSION_TO_DEFAULT_REFERENCE_GENOME_VERSION_MAP: Record<
@@ -104,7 +105,6 @@ export const SSM_PARAMETER_PATH_OUTPUT_PREFIX = path.join(
   SSM_PARAMETER_PATH_PREFIX,
   'output-prefix'
 );
-export const SSM_PARAMETER_PATH_CACHE_PREFIX = path.join(SSM_PARAMETER_PATH_PREFIX, 'cache-prefix');
 
 // Reference Parameters
 export const SSM_PARAMETER_PATH_PREFIX_ANNOTATION_PATH_BY_ANNOTATION_VERSION = path.join(
@@ -138,13 +138,16 @@ export const SSM_PARAMETER_PATH_PREFIX_REFERENCE_VERSIONS_BY_REFERENCE_VERSION =
 
 /* Event rule constants */
 // Yet to implement draft events into this service
-// export const DRAFT_STATUS = 'DRAFT';
+export const DRAFT_STATUS = 'DRAFT';
 export const READY_STATUS = 'READY';
+export const SUCCEEDED_STATUS = 'SUCCEEDED';
+export const DRAGEN_WGTS_DNA_WORKFLOW_NAME = 'dragen-wgts-rna';
 
 /* Event Constants */
 export const EVENT_BUS_NAME = 'OrcaBusMain';
-export const EVENT_SOURCE = 'orcabus.oncoanalyserwgtsdna';
+export const EVENT_SOURCE = 'orcabus.arribawgtsrna';
 export const WORKFLOW_RUN_STATE_CHANGE_DETAIL_TYPE = 'WorkflowRunStateChange';
+export const WORKFLOW_RUN_UPDATE_DETAIL_TYPE = 'WorkflowRunUpdate';
 export const ICAV2_WES_REQUEST_DETAIL_TYPE = 'Icav2WesRequest';
 export const ICAV2_WES_STATE_CHANGE_DETAIL_TYPE = 'Icav2WesAnalysisStateChange';
 
@@ -153,7 +156,7 @@ export const ICAV2_WES_EVENT_SOURCE = 'orcabus.icav2wesmanager';
 
 /* Schema constants */
 // Yet to implement draft events into this service
-export const SCHEMA_REGISTRY_NAME = EVENT_SOURCE;
+export const SCHEMA_REGISTRY_NAME = DATA_SCHEMA_REGISTRY_NAME;
 export const SSM_SCHEMA_ROOT = path.join(SSM_PARAMETER_PATH_PREFIX, 'schemas');
 
 /* Future proofing */

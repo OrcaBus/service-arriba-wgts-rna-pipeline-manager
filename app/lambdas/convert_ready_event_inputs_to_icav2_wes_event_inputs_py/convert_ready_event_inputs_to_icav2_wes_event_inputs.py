@@ -63,13 +63,12 @@ With the outputs as follows:
 # Imports
 from typing import Dict, Any, Union, List
 
-
 REFERENCE_FILE_KEYS = [
-    "referenceFasta"
-    "annotationGtf"
-    "cytobandsTsv"
-    "proteinDomainsGff3"
-    "blacklistTsv"
+    "referenceFasta",
+    "annotationGtf",
+    "cytobandsTsv",
+    "proteinDomainsGff3",
+    "blacklistTsv",
 ]
 
 
@@ -121,158 +120,27 @@ def handler(event, context) -> Dict[str, Any]:
 
     # cwl-ify the reference data
     for key in REFERENCE_FILE_KEYS:
-        if not key in inputs:
+        if key not in inputs:
             continue
         inputs[key] = cwlify_file(inputs[key])
 
+    inputs = recursive_snake_case(inputs)
+
+    # Add in the bam index
+    if 'bam_input' in inputs.get('alignment_data', {}):
+        bam_input = inputs['alignment_data']['bam_input']
+        bam_index = bam_input['location'] + '.bai'
+        bam_input['secondaryFiles'] = [cwlify_file(bam_index)]
+        inputs['alignment_data']['bam_input'] = bam_input
+
+    # Add the fai index
+    if 'reference_fasta' in inputs:
+        reference_fasta = inputs['reference_fasta']
+        reference_fai = reference_fasta['location'] + '.fai'
+        reference_fasta['secondaryFiles'] = [cwlify_file(reference_fai)]
+        inputs['reference_fasta'] = reference_fasta
+
+    # Return the inputs
     return {
-        "inputs": recursive_snake_case(inputs)
+        "inputs": inputs
     }
-
-
-# if __name__ == "__main__":
-#     import json
-#
-#     print(
-#         json.dumps(
-#             handler(
-#                 event={
-#                     "dragenWgtsDnaReadyEventDetail": {
-#                         "portalRunId": "20250606efgh1234",
-#                         "timestamp": "2025-06-06T04:39:31+00:00",
-#                         "status": "READY",
-#                         "workflowName": "dragen-wgts-dna",
-#                         "workflowVersion": "4.4.4",
-#                         "workflowRunName": "umccr--automated--dragen-wgts-dna--4-4-4--20250606efgh1234",
-#                         "linkedLibraries": [
-#                             {
-#                                 "libraryId": "L2301197",
-#                                 "orcabusId": "lib.01JBMVHM2D5GCC7FTC20K4FDFK"
-#                             }
-#                         ],
-#                         "payload": {
-#                             "refId": "4d8b4468-55da-490f-8aab-0adcaed3fc33",
-#                             "version": "2025.06.06",
-#                             "data": {
-#                                 "inputs": {
-#                                     "alignmentOptions": {
-#                                         "enableDuplicateMarking": True
-#                                     },
-#                                     "reference": {
-#                                         "name": "hg38",
-#                                         "structure": "graph",
-#                                         "tarball": "s3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/dragen-hash-tables/v11-r5/hg38-alt_masked-cnv-graph-hla-methyl_cg-rna/hg38-alt_masked.cnv.graph.hla.methyl_cg.rna-11-r5.0-1.tar.gz"
-#                                     },
-#                                     "oraReference": "s3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/dragen-ora/v2/ora_reference_v2.tar.gz",
-#                                     "sampleName": "L2301197",
-#                                     "targetedCallerOptions": {
-#                                         "enableTargeted": [
-#                                             "cyp2d6"
-#                                         ]
-#                                     },
-#                                     "sequenceData": {
-#                                         "fastqListRows": [
-#                                             {
-#                                                 "rgid": "L2301197",
-#                                                 "rglb": "L2301197",
-#                                                 "rgsm": "L2301197",
-#                                                 "lane": 1,
-#                                                 "read1FileUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/test_data/ora-testing/input_data/MDX230428_L2301197_S7_L004_R1_001.fastq.ora",
-#                                                 "read2FileUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/test_data/ora-testing/input_data/MDX230428_L2301197_S7_L004_R2_001.fastq.ora"
-#                                             }
-#                                         ]
-#                                     },
-#                                     "snv_variant_caller_options": {
-#                                         "enableVcfCompression": True,
-#                                         "enableVcfIndexing": True,
-#                                         "qcDetectContamination": True,
-#                                         "vcMnvEmitComponentCalls": True,
-#                                         "vcCombinePhasedVariantsDistance": 2,
-#                                         "vcCombinePhasedVariantsDistanceSnvsOnly": 2
-#                                     }
-#                                 },
-#                                 "engineParameters": {
-#                                     "pipelineId": "5009335a-8425-48a8-83c4-17c54607b44a",
-#                                     "projectId": "ea19a3f5-ec7c-4940-a474-c31cd91dbad4",
-#                                     "outputUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/analysis/dragen-wgts-dna/20250606efgh1234/",
-#                                     "logsUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/logs/dragen-wgts-dna/20250606efgh1234/"
-#                                 },
-#                                 "tags": {
-#                                     "libraryId": "L2301197"
-#                                 }
-#                             }
-#                         }
-#                     },
-#                     "defaultPipelineId": "5009335a-8425-48a8-83c4-17c54607b44a",
-#                     "defaultProjectId": "ea19a3f5-ec7c-4940-a474-c31cd91dbad4"
-#                 },
-#                 context=None
-#             ),
-#             indent=4
-#         )
-#     )
-#
-#     # {
-#     #     "icav2WesRequestEventDetail": {
-#     #         "name": "umccr--automated--dragen-wgts-dna--4-4-4--20250606efgh1234",
-#     #         "inputs": {
-#     #             "alignment_options": {
-#     #                 "enable_duplicate_marking": true
-#     #             },
-#     #             "reference": {
-#     #                 "name": "hg38",
-#     #                 "structure": "graph",
-#     #                 "tarball": {
-#     #                     "class": "File",
-#     #                     "location": "s3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/dragen-hash-tables/v11-r5/hg38-alt_masked-cnv-graph-hla-methyl_cg-rna/hg38-alt_masked.cnv.graph.hla.methyl_cg.rna-11-r5.0-1.tar.gz"
-#     #                 }
-#     #             },
-#     #             "ora_reference": {
-#     #                 "class": "File",
-#     #                 "location": "s3://pipeline-prod-cache-503977275616-ap-southeast-2/byob-icav2/reference-data/dragen-ora/v2/ora_reference_v2.tar.gz"
-#     #             },
-#     #             "sample_name": "L2301197",
-#     #             "targeted_caller_options": {
-#     #                 "enable_targeted": [
-#     #                     "cyp2d6"
-#     #                 ]
-#     #             },
-#     #             "sequence_data": {
-#     #                 "fastq_list_rows": [
-#     #                     {
-#     #                         "rgid": "L2301197",
-#     #                         "rglb": "L2301197",
-#     #                         "rgsm": "L2301197",
-#     #                         "lane": 1,
-#     #                         "read_1": {
-#     #                             "class": "File",
-#     #                             "location": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/test_data/ora-testing/input_data/MDX230428_L2301197_S7_L004_R1_001.fastq.ora"
-#     #                         },
-#     #                         "read_2": {
-#     #                             "class": "File",
-#     #                             "location": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/test_data/ora-testing/input_data/MDX230428_L2301197_S7_L004_R2_001.fastq.ora"
-#     #                         }
-#     #                     }
-#     #                 ]
-#     #             },
-#     #             "snv_variant_caller_options": {
-#     #                 "enable_vcf_compression": true,
-#     #                 "enable_vcf_indexing": true,
-#     #                 "qc_detect_contamination": true,
-#     #                 "vc_mnv_emit_component_calls": true,
-#     #                 "vc_combine_phased_variants_distance": 2,
-#     #                 "vc_combine_phased_variants_distance_snvs_only": 2
-#     #             }
-#     #         },
-#     #         "engineParameters": {
-#     #             "outputUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/analysis/dragen-wgts-dna/20250606efgh1234/",
-#     #             "logsUri": "s3://pipeline-dev-cache-503977275616-ap-southeast-2/byob-icav2/development/logs/dragen-wgts-dna/20250606efgh1234/",
-#     #             "projectId": "ea19a3f5-ec7c-4940-a474-c31cd91dbad4",
-#     #             "pipelineId": "5009335a-8425-48a8-83c4-17c54607b44a"
-#     #         },
-#     #         "tags": {
-#     #             "libraryId": "L2301197",
-#     #             "portalRunId": "20250606efgh1234"
-#     #         }
-#     #     }
-#     # }
