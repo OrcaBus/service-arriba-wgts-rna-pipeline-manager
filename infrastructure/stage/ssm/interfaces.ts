@@ -16,7 +16,7 @@ export interface SsmParameterValues {
   annotationVersionByWorkflowVersionMap: Record<WorkflowVersionType, AnnotationVersionType>;
   annotationPathsByAnnotationVersionMap: Record<AnnotationVersionType, string>;
   cytobandsPathsByWorkflowVersionMap: Record<WorkflowVersionType, string>;
-  protenDomainPathsByWorkflowVersionMap: Record<WorkflowVersionType, string>;
+  proteinDomainPathsByWorkflowVersionMap: Record<WorkflowVersionType, string>;
   blacklistPathsByWorkflowVersionMap: Record<WorkflowVersionType, string>;
   referenceVersionByWorkflowVersionMap: Record<WorkflowVersionType, GenomeVersionType>;
   referenceFastaPathsByReferenceFastaVersionMap: Record<GenomeVersionType, string>;
@@ -41,7 +41,7 @@ export interface SsmParameterPaths {
   annotationVersionByWorkflowSsmRootPrefix: string;
   annotationPathsByAnnotationSsmRootPrefix: string;
   cytobandsPathsByWorkflowSsmRootPrefix: string;
-  protenDomainPathsByWorkflowSsmRootPrefix: string;
+  proteinDomainPathsByWorkflowSsmRootPrefix: string;
   blacklistPathsByWorkflowSsmRootPrefix: string;
   referenceVersionByWorkflowSsmRootPrefix: string;
   referenceFastaPathsByReferenceFastaSsmRootPrefix: string;

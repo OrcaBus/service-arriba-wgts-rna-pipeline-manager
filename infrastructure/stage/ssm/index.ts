@@ -107,11 +107,11 @@ export function buildSsmParameters(scope: Construct, props: BuildSsmParameterPro
 
   // Protein domains by workflow version map
   for (const [key, value] of Object.entries(
-    props.ssmParameterValues.protenDomainPathsByWorkflowVersionMap
+    props.ssmParameterValues.proteinDomainPathsByWorkflowVersionMap
   )) {
     new ssm.StringParameter(scope, `protein-domains-path-by-workflow-version-${key}`, {
       parameterName: path.join(
-        props.ssmParameterPaths.protenDomainPathsByWorkflowSsmRootPrefix,
+        props.ssmParameterPaths.proteinDomainPathsByWorkflowSsmRootPrefix,
         key
       ),
       stringValue: value,

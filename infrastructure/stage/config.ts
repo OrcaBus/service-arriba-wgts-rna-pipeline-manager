@@ -66,7 +66,7 @@ export const getSsmParameterValues = (stage: StageName): SsmParameterValues => {
     annotationPathsByAnnotationVersionMap: ANNOTATION_VERSION_TO_ANNOTATION_PATHS_MAP,
     blacklistPathsByWorkflowVersionMap: BLACKLIST_VERSION_TO_BLACKLIST_PATHS_MAP,
     cytobandsPathsByWorkflowVersionMap: CYTOBANDS_VERSION_TO_CYTOBANDS_PATHS_MAP,
-    protenDomainPathsByWorkflowVersionMap: PROTEIN_DOMAINS_VERSION_TO_PROTEIN_DOMAINS_PATHS_MAP,
+    proteinDomainPathsByWorkflowVersionMap: PROTEIN_DOMAINS_VERSION_TO_PROTEIN_DOMAINS_PATHS_MAP,
   };
 };
 
@@ -97,7 +97,7 @@ export const getSsmParameterPaths = (): SsmParameterPaths => {
       SSM_PARAMETER_PATH_PREFIX_BLACKLIST_PATHS_BY_WORKFLOW_VERSION,
     cytobandsPathsByWorkflowSsmRootPrefix:
       SSM_PARAMETER_PATH_PREFIX_CYTOBANDS_PATHS_BY_WORKFLOW_VERSION,
-    protenDomainPathsByWorkflowSsmRootPrefix:
+    proteinDomainPathsByWorkflowSsmRootPrefix:
       SSM_PARAMETER_PATH_PREFIX_PROTEIN_DOMAINS_PATHS_BY_WORKFLOW_VERSION,
     referenceFastaPathsByReferenceFastaSsmRootPrefix:
       SSM_PARAMETER_PATH_PREFIX_REFERENCE_PATH_BY_REFERENCE_VERSION,

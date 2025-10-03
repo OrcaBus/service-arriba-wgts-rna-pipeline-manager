@@ -88,7 +88,7 @@ function createStateMachineDefinitionSubstitutions(props: BuildStepFunctionProps
       props.ssmParameterPaths.cytobandsPathsByWorkflowSsmRootPrefix;
     // Protein domains
     definitionSubstitutions['__protein_domain_path_ssm_parameter_prefix__'] =
-      props.ssmParameterPaths.protenDomainPathsByWorkflowSsmRootPrefix;
+      props.ssmParameterPaths.proteinDomainPathsByWorkflowSsmRootPrefix;
   }
 
   /* Sfn Requirements */
