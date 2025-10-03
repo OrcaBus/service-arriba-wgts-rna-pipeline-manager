@@ -52,6 +52,30 @@ export function buildIcav2WesEventStateChangeToWrscSfnTarget(
 export function buildAllEventBridgeTargets(props: EventBridgeTargetsProps) {
   for (const eventBridgeTargetsName of eventBridgeTargetsNameList) {
     switch (eventBridgeTargetsName) {
+      // Dragen RNA Succeeded to Glue
+      case 'upstreamSucceededEventLegacyToGlueSucceededEvents': {
+        buildWrscLegacyToSfnTarget(<AddSfnAsEventBridgeTargetProps>{
+          eventBridgeRuleObj: props.eventBridgeRuleObjects.find(
+            (eventBridgeObject) => eventBridgeObject.ruleName === 'upstreamSucceededEventLegacy'
+          )?.ruleObject,
+          stateMachineObj: props.stepFunctionObjects.find(
+            (sfnObject) => sfnObject.stateMachineName === 'glueSucceededEventsToDraftUpdate'
+          )?.sfnObject,
+        });
+        break;
+      }
+      case 'upstreamSucceededEventToGlueSucceededEvents': {
+        buildWrscToSfnTarget(<AddSfnAsEventBridgeTargetProps>{
+          eventBridgeRuleObj: props.eventBridgeRuleObjects.find(
+            (eventBridgeObject) => eventBridgeObject.ruleName === 'upstreamSucceededEvent'
+          )?.ruleObject,
+          stateMachineObj: props.stepFunctionObjects.find(
+            (sfnObject) => sfnObject.stateMachineName === 'glueSucceededEventsToDraftUpdate'
+          )?.sfnObject,
+        });
+        break;
+      }
+
       // Draft Legacy to Populate Draft Data
       case 'draftLegacyToPopulateDraftDataSfnTarget': {
         buildWrscLegacyToSfnTarget(<AddSfnAsEventBridgeTargetProps>{
@@ -78,7 +102,7 @@ export function buildAllEventBridgeTargets(props: EventBridgeTargetsProps) {
 
       // Validate draft data
       case 'draftLegacyToValidateDraftSfnTarget': {
-        buildWrscToSfnTarget(<AddSfnAsEventBridgeTargetProps>{
+        buildWrscLegacyToSfnTarget(<AddSfnAsEventBridgeTargetProps>{
           eventBridgeRuleObj: props.eventBridgeRuleObjects.find(
             (eventBridgeObject) => eventBridgeObject.ruleName === 'wrscDraftLegacy'
           )?.ruleObject,

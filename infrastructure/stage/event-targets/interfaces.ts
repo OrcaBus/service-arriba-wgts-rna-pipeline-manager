@@ -7,7 +7,9 @@ import { StepFunctionObject } from '../step-functions/interfaces';
  * EventBridge Target Interfaces
  */
 export type EventBridgeTargetName =
-  // FIXME glue succeeded events to draft update events
+  // Dragen WGTS Succeeded
+  | 'upstreamSucceededEventLegacyToGlueSucceededEvents'
+  | 'upstreamSucceededEventToGlueSucceededEvents'
   // Populate draft data event targets
   | 'draftLegacyToPopulateDraftDataSfnTarget'
   | 'draftToPopulateDraftDataSfnTarget'
@@ -21,6 +23,9 @@ export type EventBridgeTargetName =
   | 'icav2WesAnalysisStateChangeEventToWrscSfnTarget';
 
 export const eventBridgeTargetsNameList: EventBridgeTargetName[] = [
+  // Dragen WGTS Succeeded
+  'upstreamSucceededEventLegacyToGlueSucceededEvents',
+  'upstreamSucceededEventToGlueSucceededEvents',
   // Populate draft data event targets
   'draftLegacyToPopulateDraftDataSfnTarget',
   'draftToPopulateDraftDataSfnTarget',
