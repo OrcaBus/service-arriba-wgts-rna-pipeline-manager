@@ -16,7 +16,7 @@ import path from 'path';
 import {
   DEFAULT_PAYLOAD_VERSION,
   DRAFT_STATUS,
-  DRAGEN_WGTS_DNA_WORKFLOW_NAME,
+  DRAGEN_WGTS_RNA_WORKFLOW_NAME,
   EVENT_SOURCE,
   ICAV2_WES_REQUEST_DETAIL_TYPE,
   READY_STATUS,
@@ -54,7 +54,7 @@ function createStateMachineDefinitionSubstitutions(props: BuildStepFunctionProps
   definitionSubstitutions['__ready_status__'] = READY_STATUS;
   definitionSubstitutions['__succeeded_status__'] = SUCCEEDED_STATUS;
   // Dragen workflow names
-  definitionSubstitutions['__dragen_wgts_rna_workflow_name__'] = DRAGEN_WGTS_DNA_WORKFLOW_NAME;
+  definitionSubstitutions['__dragen_wgts_rna_workflow_name__'] = DRAGEN_WGTS_RNA_WORKFLOW_NAME;
   definitionSubstitutions['__default_payload_version__'] = DEFAULT_PAYLOAD_VERSION;
   // Stack workflow name
   definitionSubstitutions['__workflow_name__'] = WORKFLOW_NAME;

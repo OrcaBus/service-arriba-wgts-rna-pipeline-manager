@@ -141,7 +141,7 @@ export const SSM_PARAMETER_PATH_PREFIX_REFERENCE_VERSIONS_BY_REFERENCE_VERSION =
 export const DRAFT_STATUS = 'DRAFT';
 export const READY_STATUS = 'READY';
 export const SUCCEEDED_STATUS = 'SUCCEEDED';
-export const DRAGEN_WGTS_DNA_WORKFLOW_NAME = 'dragen-wgts-rna';
+export const DRAGEN_WGTS_RNA_WORKFLOW_NAME = 'dragen-wgts-rna';
 
 /* Event Constants */
 export const EVENT_BUS_NAME = 'OrcaBusMain';
