@@ -161,14 +161,12 @@
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke",
               "Output": {
-                "normalDnaInputs": "{% $states.result.Payload.normalDnaInputs %}"
+                "alignmentData": "{% $states.result.Payload %}"
               },
               "Arguments": {
                 "FunctionName": "${__get_dragen_rna_outputs_from_portal_run_id_lambda_function_arn__}",
                 "Payload": {
-                  "portalRunId": "{% $upstreamPortalRunId %}",
-                  "phenotype": "NORMAL",
-                  "sampleType": "DNA"
+                  "portalRunId": "{% $upstreamPortalRunId %}"
                 }
               },
               "Retry": [
