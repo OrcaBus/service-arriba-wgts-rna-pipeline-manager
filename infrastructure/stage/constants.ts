@@ -27,8 +27,8 @@ export const WORKFLOW_VERSION_TO_DEFAULT_ICAV2_PIPELINE_ID_MAP: Record<
   WorkflowVersionType,
   string
 > = {
-  // At the moment we are running manual deployments of the workflow
-  '2.5.0': '635bbcaa-9a23-47e5-8809-dd1ffb4d5831',
+  // https://github.com/umccr/cwl-ica/releases/tag/arriba-pipeline%2F2.5.0__20251004075334
+  '2.5.0': '372b7fbd-d4f5-4ed4-8e75-d773971ed25f',
 };
 
 export const ANNOTATION_VERSION_TO_ANNOTATION_PATHS_MAP: Record<AnnotationVersionType, string> = {
