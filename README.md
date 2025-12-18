@@ -1,8 +1,7 @@
-Arriba WGTS RNA Pipeline Manager
+# Arriba WGTS RNA Pipeline Manager
 ================================================================================
 
-- [Template Service](#template-service)
-  - [Service Description](#service-description)
+- [Service Description](#service-description)
     - [Name \& responsibility](#name--responsibility)
     - [Description](#description)
     - [API Endpoints](#api-endpoints)
@@ -12,97 +11,128 @@ Arriba WGTS RNA Pipeline Manager
     - [Major Business Rules](#major-business-rules)
     - [Permissions \& Access Control](#permissions--access-control)
     - [Change Management](#change-management)
-      - [Versioning strategy](#versioning-strategy)
-      - [Release management](#release-management)
-  - [Infrastructure \& Deployment](#infrastructure--deployment)
+        - [Versioning strategy](#versioning-strategy)
+        - [Release management](#release-management)
+- [Infrastructure \& Deployment](#infrastructure--deployment)
     - [Stateful](#stateful)
     - [Stateless](#stateless)
     - [CDK Commands](#cdk-commands)
     - [Stacks](#stacks)
-  - [Development](#development)
+    - [Launch from dev](#launch-from-dev)
+        - [Making your own draft events with BASH / JQ (dev)](#making-your-own-draft-events-with-bash--jq-dev)
+- [Development](#development)
     - [Project Structure](#project-structure)
     - [Setup](#setup)
-      - [Requirements](#requirements)
-      - [Install Dependencies](#install-dependencies)
-      - [First Steps](#first-steps)
+        - [Requirements](#requirements)
+        - [Install Dependencies](#install-dependencies)
+        - [First Steps](#first-steps)
     - [Conventions](#conventions)
     - [Linting \& Formatting](#linting--formatting)
     - [Testing](#testing)
-  - [Glossary \& References](#glossary--references)
+- [Glossary \& References](#glossary--references)
 
-
-Service Description
+## Description
 --------------------------------------------------------------------------------
 
-### Name & responsibility
+This is the Arriba WGTS RNA Pipeline Manager service, responsible for managing and orchestrating the
+Arriba WGTS RNA sequencing workflows within the OrcaBus platform.
 
-### Description
+The [arriba package](https://github.com/suhrig/arriba) is used for gene fusion detection from RNA-Seq data.
 
-### API Endpoints
+The orchestration logic is per the standard [ICAv2-centric Pipeline Architechture]()
 
-This service provides a RESTful API following OpenAPI conventions.
-The Swagger documentation of the production endpoint is available here:
+### Ready Event Creation
 
+![Arriba WGTS RNA Pipeline Manager Architecture](./docs/draw-io-exports/draft-to-ready.drawio.svg)
 
 ### Consumed Events
 
-| Name / DetailType | Source         | Schema Link       | Description         |
-|-------------------|----------------|-------------------|---------------------|
-| `SomeServiceStateChange` | `orcabus.someservice` | <schema link> | Announces service state changes |
+| Name / DetailType             | Source                    | Schema Link                                                                                                                                | Description                           |
+|-------------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| `WorkflowRunStateChange`      | `orcabus.workflowmanager` | [WorkflowRunStateChange](https://github.com/OrcaBus/wiki/tree/main/orcabus-platform#workflowrunstatechange)                                | Source of updates on WorkflowRuns     |
+| `Icav2WesAnalysisStateChange` | `orcabus.icav2wes`        | [Icav2WesAnalysisStateChange](https://github.com/OrcaBus/service-icav2-wes-manager/blob/main/app/event-schemas/analysis-state-change.json) | ICAv2 WES Analysis State Change event |
 
 ### Published Events
 
-| Name / DetailType | Source         | Schema Link       | Description         |
-|-------------------|----------------|-------------------|---------------------|
-| `TemplateStateChange` | `orcabus.templatemanager` | <schema link> | Announces Template data state changes |
+| Name / DetailType   | Source                  | Schema Link                                                                                                                                    | Description                    |
+|---------------------|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
+| `WorkflowRunUpdate` | `orcabus.arribawgtsrna` | [WorkflowRunUpdate](https://github.com/OrcaBus/service-workflow-manager/blob/main/docs/events/WorkflowRunUpdate/WorkflowRunUpdate.schema.json) | Announces Workflow Run Updates |
 
+### Draft Event
 
-### (Internal) Data states & persistence model
+A workflow run must be placed into a DRAFT state before it can be started.
 
-### Major Business Rules
+This is to ensure that only valid workflow runs are started, and that all required data is present.
 
-### Permissions & Access Control
+This service is responsible for both populating and validating draft workflow runs.
 
-### Change Management
+A draft event may even be submitted without a payload.
 
-#### Versioning strategy
+#### Draft Event Submission
 
-E.g. Manual tagging of git commits following Semantic Versioning (semver) guidelines.
+To submit an Arriba WGTS RNA draft event, please follow the [PM.AWR.1 SOP](docs/operation/SOP/README.md#PM.AWR.1)
+in our SOPs documentation.
 
-#### Release management
+#### Draft Data Schema Validation
 
-The service employs a fully automated CI/CD pipeline that automatically builds and releases all changes to the `main` code branch.
+We hvae generated JSON schemas for the complete DRAFT WRU event **data** which you can find in the
+[`app/event-schemas` directory](app/event-schemas).
 
+YOu can interactively check if your DRAFT event data payload matches the schema using the following links:
+
+- [Complete DRAFT WRU Event Data Schema Page](https://www.jsonschemavalidator.net/s/8tRREgRp)
+
+### Release management
+
+The service employs a fully automated CI/CD pipeline that
+automatically builds and releases all changes to the `main` code branch.
+
+### Related Services
+
+#### Upstream Pipelines
+
+- [Dragen WGTS RNA Pipeline Manager](https://github.com/OrcaBus/service-dragen-wgts-rna-pipeline-manager)
+
+#### Downstream Pipelines
+
+- [RNASum Pipeline Manager](https://github.com/OrcaBus/service-rnasum-pipeline-manager)
+
+#### Primary Services
+
+- [ICAv2 WES Manager](https://github.com/OrcaBus/service-icav2-wes-manager)
+- [Workflow Manager](https://github.com/OrcaBus/service-workflow-manager)
 
 Infrastructure & Deployment
 --------------------------------------------------------------------------------
 
 Short description with diagrams where appropriate.
 Deployment settings / configuration (e.g. CodePipeline(s) / automated builds).
-
-Infrastructure and deployment are managed via CDK. This template provides two types of CDK entry points: `cdk-stateless` and `cdk-stateful`.
-
+Infrastructure and deployment are managed via CDK.
+This template provides two types of CDK entry points: `cdk-stateless` and `cdk-stateful`.
 
 ### Stateful
 
-- Queues
-- Buckets
-- Database
-- ...
+- SSM Parameters
+- Event Schemas
 
 ### Stateless
-- Lambdas
-- StepFunctions
 
+- Lambdas
+- Step Functions
+- Event Rules
+- Event Targets (connecting event rules to StepFunctions)
 
 ### CDK Commands
 
 You can access CDK commands using the `pnpm` wrapper script.
 
-- **`cdk-stateless`**: Used to deploy stacks containing stateless resources (e.g., AWS Lambda), which can be easily redeployed without side effects.
-- **`cdk-stateful`**: Used to deploy stacks containing stateful resources (e.g., AWS DynamoDB, AWS RDS), where redeployment may not be ideal due to potential side effects.
+- **`cdk-stateless`**: Used to deploy stacks containing stateless resources (e.g., AWS Lambda), which can be easily
+  redeployed without side effects.
+- **`cdk-stateful`**: Used to deploy stacks containing stateful resources (e.g., AWS DynamoDB, AWS RDS), where
+  redeployment may not be ideal due to potential side effects.
 
-The type of stack to deploy is determined by the context set in the `./bin/deploy.ts` file. This ensures the correct stack is executed based on the provided context.
+The type of stack to deploy is determined by the context set in the `./bin/deploy.ts` file. This ensures the correct
+stack is executed based on the provided context.
 
 For example:
 
@@ -116,195 +146,33 @@ pnpm cdk-stateful <command>
 
 ### Stacks
 
-This CDK project manages multiple stacks. The root stack (the only one that does not include `DeploymentPipeline` in its stack ID) is deployed in the toolchain account and sets up a CodePipeline for cross-environment deployments to `beta`, `gamma`, and `prod`.
+This CDK project manages multiple stacks. The root stack (the only one that does not include `DeploymentPipeline` in its
+stack ID) is deployed in the toolchain account and sets up a CodePipeline for cross-environment deployments to `beta`,
+`gamma`, and `prod`.
 
 To list all available stacks, run:
 
 ```sh
+pnpm cdk-stateful ls
 pnpm cdk-stateless ls
 ```
 
-Example output:
+Output
 
 ```sh
-OrcaBusStatelessServiceStack
-OrcaBusStatelessServiceStack/DeploymentPipeline/OrcaBusBeta/DeployStack (OrcaBusBeta-DeployStack)
-OrcaBusStatelessServiceStack/DeploymentPipeline/OrcaBusGamma/DeployStack (OrcaBusGamma-DeployStack)
-OrcaBusStatelessServiceStack/DeploymentPipeline/OrcaBusProd/DeployStack (OrcaBusProd-DeployStack)
+# Stateful
+StatefulArribaWgtsRnaPipeline
+StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusBeta/StatefulArribaWgtsRnaPipeline (OrcaBusBeta-StatefulArribaWgtsRnaPipeline)
+StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusGamma/StatefulArribaWgtsRnaPipeline (OrcaBusGamma-StatefulArribaWgtsRnaPipeline)
+StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusProd/StatefulArribaWgtsRnaPipeline (OrcaBusProd-StatefulArribaWgtsRnaPipeline)
+# Stateless
+StatelessArribaWgtsRnaPipelineManager
+StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusBeta/StatelessArribaWgtsRnaPipelineManager (OrcaBusBeta-StatelessArribaWgtsRnaPipelineManager)
+StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusGamma/StatelessArribaWgtsRnaPipelineManager (OrcaBusGamma-StatelessArribaWgtsRnaPipelineManager)
+StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusProd/StatelessArribaWgtsRnaPipelineManager (OrcaBusProd-StatelessArribaWgtsRnaPipelineManager)
 ```
 
-### Launch from dev
-
-#### Making your own draft events with BASH / JQ (dev)
-
-There may be circumstances where you wish to generate WRSC events manually, the below is a quick solution for
-generating a draft for a dragen rna dna workflow.
-
-The draft populator step function will also pull necessary fastq files out of archive.
-
-<details>
-
-<summary>Click to expand</summary>
-
-```shell
-# Globals
-EVENT_BUS_NAME="OrcaBusMain"
-DETAIL_TYPE="WorkflowRunUpdate"
-SOURCE="orcabus.manual"
-
-WORKFLOW_NAME="arriba-wgts-rna"
-WORKFLOW_VERSION="2.5.0"  # Name of the version were currently using
-CODE_VERSION="20d534e"  # Placeholder for now
-EXECUTION_ENGINE="ICA"
-
-PAYLOAD_VERSION="2025.09.25"
-
-# Glocals
-LIBRARY_ID="L2500568"
-
-# Functions
-get_hostname_from_ssm(){
-  aws ssm get-parameter \
-    --name "/hosted_zone/umccr/name" \
-    --output json | \
-  jq --raw-output \
-    '.Parameter.Value'
-}
-
-get_orcabus_token(){
-  aws secretsmanager get-secret-value \
-    --secret-id orcabus/token-service-jwt \
-    --output json \
-    --query SecretString | \
-  jq --raw-output \
-    'fromjson | .id_token'
-}
-
-get_pipeline_id_from_workflow_version(){
-  local workflow_version="$1"
-  aws ssm get-parameter \
-    --name "/orcabus/workflows/arriba-wgts-rna/pipeline-ids-by-workflow-version/${workflow_version}" \
-    --output json | \
-  jq --raw-output \
-    '.Parameter.Value'
-}
-
-get_library_obj_from_library_id(){
-  local library_id="$1"
-  curl --silent --fail --show-error --location \
-    --header "Authorization: Bearer $(get_orcabus_token)" \
-    --url "https://metadata.$(get_hostname_from_ssm)/api/v1/library?libraryId=${library_id}" | \
-  jq --raw-output \
-    '
-      .results[0] |
-      {
-        "libraryId": .libraryId,
-        "orcabusId": .orcabusId
-      }
-    '
-}
-
-generate_portal_run_id(){
-  echo "$(date -u +'%Y%m%d')$(openssl rand -hex 4)"
-}
-
-get_linked_libraries(){
-  local library_id="$1"
-
-  jq --null-input --compact-output --raw-output \
-    --argjson libraryObj "$(get_library_obj_from_library_id "${library_id}")" \
-    '
-      [
-          $libraryObj
-      ]
-    '
-}
-
-get_workflow(){
-  local workflow_name="$1"
-  local workflow_version="$2"
-  local execution_engine="$3"
-  local execution_engine_pipeline_id="$4"
-  local code_version="$5"
-  curl --silent --fail --show-error --location \
-    --request GET \
-    --get \
-    --header "Authorization: Bearer $(get_orcabus_token)" \
-    --url "https://workflow.$(get_hostname_from_ssm)/api/v1/workflow" \
-    --data "$( \
-      jq \
-       --null-input --compact-output --raw-output \
-       --arg workflowName "$workflow_name" \
-       --arg workflowVersion "$workflow_version" \
-       --arg codeVersion "$code_version" \
-       '
-         {
-            "name": $workflowName,
-            "version": $workflowVersion,
-            "codeVersion": $codeVersion
-         } |
-         to_entries |
-         map(
-           "\(.key)=\(.value)"
-         ) |
-         join("&")
-       ' \
-    )" | \
-  jq --compact-output --raw-output \
-    '
-      .results[0]
-    '
-}
-
-# Generate the event
-event_cli_json="$( \
-  jq --null-input --raw-output \
-    --arg eventBusName "$EVENT_BUS_NAME" \
-    --arg detailType "$DETAIL_TYPE" \
-    --arg source "$SOURCE" \
-    --argjson workflow "$(get_workflow \
-      "${WORKFLOW_NAME}" "${WORKFLOW_VERSION}" \
-      "${EXECUTION_ENGINE}" "$(get_pipeline_id_from_workflow_version "${WORKFLOW_VERSION}")" \
-      "${CODE_VERSION}"
-    )" \
-    --arg payloadVersion "$PAYLOAD_VERSION" \
-    --arg portalRunId "$(generate_portal_run_id)" \
-    --argjson libraries "$(get_linked_libraries "${LIBRARY_ID}")" \
-    '
-      {
-        # Standard fields for the event
-        "EventBusName": $eventBusName,
-        "DetailType": $detailType,
-        "Source": $source,
-        # Detail must be a JSON object in string format
-        "Detail": (
-          {
-            "status": "DRAFT",
-            "timestamp": (now | todateiso8601),
-            "workflow": $workflow,
-            "workflowRunName": ("umccr--automated--" + $workflow["name"] + "--" + ($workflow["version"] | gsub("\\."; "-")) + "--" + $portalRunId),
-            "portalRunId": $portalRunId,
-            "libraries": $libraries
-          } |
-          tojson
-        )
-      } |
-      # Now wrap into an "entry" for the CLI
-      {
-        "Entries": [
-          .
-        ]
-      }
-    ' \
-)"
-
-aws events put-events --no-cli-pager --cli-input-json "${event_cli_json}"
-```
-
-</details>
-
-
-Development
+## Development
 --------------------------------------------------------------------------------
 
 ### Project Structure
@@ -313,20 +181,35 @@ The root of the project is an AWS CDK project where the main application logic l
 
 The project is organized into the following key directories:
 
-- **`./app`**: Contains the main application logic. You can open the code editor directly in this folder, and the application should run independently.
+- **`./app`**:
+  - Contains the main application logic (lambdas / step functions / event schemas).
 
-- **`./bin/deploy.ts`**: Serves as the entry point of the application. It initializes two root stacks: `stateless` and `stateful`. You can remove one of these if your service does not require it.
+- **`./bin/deploy.ts`**:
+  - Serves as the entry point of the application.
+  - It initializes two root stacks: `stateless` and `stateful`.
 
 - **`./infrastructure`**: Contains the infrastructure code for the project:
-  - **`./infrastructure/toolchain`**: Includes stacks for the stateless and stateful resources deployed in the toolchain account. These stacks primarily set up the CodePipeline for cross-environment deployments.
-  - **`./infrastructure/stage`**: Defines the stage stacks for different environments:
-    - **`./infrastructure/stage/config.ts`**: Contains environment-specific configuration files (e.g., `beta`, `gamma`, `prod`).
-    - **`./infrastructure/stage/stack.ts`**: The CDK stack entry point for provisioning resources required by the application in `./app`.
+    - **`./infrastructure/toolchain`**: Includes stacks for the stateless and stateful resources deployed in the toolchain account.
+      - These stacks primarily set up the CodePipeline for cross-environment deployments.
+    - **`./infrastructure/stage`**: Defines the stage stacks for different environments:
+        - **`./infrastructure/stage/interfaces`**: The TypeScript interfaces used across constants, and stack configurations.
+        - **`./infrastructure/stage/constants.ts`**: Constants used across different stacks and stages.
+        - **`./infrastructure/stage/config.ts`**: Contains environment-specific configuration files (e.g., `beta`,
+          `gamma`, `prod`).
+        - **`./infrastructure/stage/stateful-application-stack.ts`**: The CDK stack entry point for provisioning resources required by the
+          application in `./app`.
+        - **`./infrastructure/stage/stateless-application-stack.ts`**: The CDK stack entry point for provisioning stateless resources required by the
+          application in `./app`.
+        - **`./infrastructure/stage/<aws-service-constructs>/`**: Contains AWS service-specific constructs used in the stacks.
+          - Each AWS service construct is called from either the `stateful-application-stack.ts` or `stateless-application-stack.ts`.
+          - Each AWS service folder contains an `index.ts` and `interfaces.ts` file.
 
-- **`.github/workflows/pr-tests.yml`**: Configures GitHub Actions to run tests for `make check` (linting and code style), tests defined in `./test`, and `make test` for the `./app` directory. Modify this file as needed to ensure the tests are properly configured for your environment.
+- **`.github/workflows/pr-tests.yml`**: Configures GitHub Actions to run tests for `make check` (linting and code
+  style), tests defined in `./test`, and `make test` for the `./app` directory. Modify this file as needed to ensure the
+  tests are properly configured for your environment.
 
-- **`./test`**: Contains tests for CDK code compliance against `cdk-nag`. You should modify these test files to match the resources defined in the `./infrastructure` folder.
-
+- **`./test`**: Contains tests for CDK code compliance against `cdk-nag`. You should modify these test files to match
+  the resources defined in the `./infrastructure` folder.
 
 ### Setup
 
@@ -352,19 +235,15 @@ To install all required dependencies, run:
 make install
 ```
 
-#### First Steps
-
-Before using this template, search for all instances of `TODO:` comments in the codebase and update them as appropriate for your service. This includes replacing placeholder values (such as stack names).
-
-
 ### Conventions
 
 ### Linting & Formatting
 
-Automated checks are enforces via pre-commit hooks, ensuring only checked code is committed. For details consult the `.pre-commit-config.yaml` file.
+Automated checks are enforces via pre-commit hooks, ensuring only checked code is committed. For details consult the
+`.pre-commit-config.yaml` file.
 
-Manual, on-demand checking is also available via `make` targets (see below). For details consult the `Makefile` in the root of the project.
-
+Manual, on-demand checking is also available via `make` targets (see below). For details consult the `Makefile` in the
+root of the project.
 
 To run linting and formatting checks on the root project, use:
 
@@ -380,8 +259,8 @@ make fix
 
 ### Testing
 
-
-Unit tests are available for most of the business logic. Test code is hosted alongside business in `/tests/` directories.
+Unit tests are available for most of the business logic. Test code is hosted alongside business in `/tests/`
+directories.
 
 ```sh
 make test
@@ -390,11 +269,5 @@ make test
 Glossary & References
 --------------------------------------------------------------------------------
 
-For general terms and expressions used across OrcaBus services, please see the platform [documentation](https://github.com/OrcaBus/wiki/blob/main/orcabus-platform/README.md#glossary--references).
-
-Service specific terms:
-
-| Term      | Description                                      |
-|-----------|--------------------------------------------------|
-| Foo | ... |
-| Bar | ... |
+For general terms and expressions used across OrcaBus services, please see the
+platform [documentation](https://github.com/OrcaBus/wiki/blob/main/orcabus-platform/README.md#glossary--references).

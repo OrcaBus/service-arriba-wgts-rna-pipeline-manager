@@ -14,7 +14,6 @@ import {
   WORKFLOW_VERSION_TO_DEFAULT_ICAV2_PIPELINE_ID_MAP,
   EVENT_BUS_NAME,
   SSM_PARAMETER_PATH_PREFIX,
-  NEW_WORKFLOW_MANAGER_IS_DEPLOYED,
   ANNOTATION_VERSION_TO_ANNOTATION_PATHS_MAP,
   REFERENCE_GENOME_VERSION_TO_REFERENCE_GENOME_PATHS_MAP,
   BLACKLIST_VERSION_TO_BLACKLIST_PATHS_MAP,
@@ -116,13 +115,10 @@ export const getStatefulStackProps = (stage: StageName): StatefulApplicationStac
   };
 };
 
-export const getStatelessStackProps = (stage: StageName): StatelessApplicationStackConfig => {
+export const getStatelessStackProps = (): StatelessApplicationStackConfig => {
   return {
     // Event Bus Object
     eventBusName: EVENT_BUS_NAME,
-
-    // Is new workflow manager deployed
-    isNewWorkflowManagerDeployed: NEW_WORKFLOW_MANAGER_IS_DEPLOYED[stage],
 
     // SSM Parameter paths
     ssmParameterPaths: getSsmParameterPaths(),

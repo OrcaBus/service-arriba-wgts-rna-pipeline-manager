@@ -15,7 +15,7 @@ from orcabus_api_tools.filemanager import list_files_from_portal_run_id
 from orcabus_api_tools.workflow import get_latest_payload_from_portal_run_id
 
 # Globals
-DRAGEN_WGTS_DNA_WORKFLOW_RUN_NAME = "dragen-wgts-rna"
+DRAGEN_WGTS_RNA_WORKFLOW_RUN_NAME = "dragen-wgts-rna"
 
 def extend_s3_uri_path(analysis_root_prefix: str, path: str) -> str:
     s3_obj = urlparse(analysis_root_prefix)

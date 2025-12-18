@@ -24,7 +24,6 @@ import {
   STEP_FUNCTIONS_DIR,
   SUCCEEDED_STATUS,
   WORKFLOW_NAME,
-  WORKFLOW_RUN_STATE_CHANGE_DETAIL_TYPE,
   WORKFLOW_RUN_UPDATE_DETAIL_TYPE,
 } from '../constants';
 import { Construct } from 'constructs';
@@ -94,15 +93,11 @@ function createStateMachineDefinitionSubstitutions(props: BuildStepFunctionProps
   /* Sfn Requirements */
   if (sfnRequirements.needsEventPutPermission) {
     definitionSubstitutions['__event_bus_name__'] = props.eventBus.eventBusName;
-    definitionSubstitutions['__workflow_run_state_change_event_detail_type__'] =
-      WORKFLOW_RUN_STATE_CHANGE_DETAIL_TYPE;
     definitionSubstitutions['__workflow_run_update_event_detail_type__'] =
       WORKFLOW_RUN_UPDATE_DETAIL_TYPE;
     definitionSubstitutions['__icav2_wes_request_detail_type__'] = ICAV2_WES_REQUEST_DETAIL_TYPE;
     definitionSubstitutions['__stack_source__'] = EVENT_SOURCE;
     definitionSubstitutions['__ready_event_status__'] = READY_STATUS;
-    definitionSubstitutions['__new_workflow_manager_is_deployed__'] =
-      props.isNewWorkflowManagerDeployed.toString();
   }
 
   return definitionSubstitutions;
@@ -158,7 +153,7 @@ function buildStepFunction(scope: Construct, props: BuildStepFunctionProps): Ste
 
   /* Create the state machine definition substitutions */
   const stateMachine = new sfn.StateMachine(scope, props.stateMachineName, {
-    stateMachineName: `${STACK_PREFIX}-${props.stateMachineName}`,
+    stateMachineName: `${STACK_PREFIX}--${props.stateMachineName}`,
     definitionBody: sfn.DefinitionBody.fromFile(
       path.join(STEP_FUNCTIONS_DIR, sfnNameToSnakeCase + `_sfn_template.asl.json`)
     ),

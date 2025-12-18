@@ -7,9 +7,14 @@ Given a library id, use the fastq set endpoint to collect all rgids associated w
 
 Rgids are returned in the format '<index>+<index2>.<lane>.<instrument_run_id>'
 """
+# Standard library imports
+from typing import Optional, List
 
 # Layer imports
-from orcabus_api_tools.fastq import get_fastq_sets, get_fastq_list_rows_in_fastq_set
+from orcabus_api_tools.fastq import (
+    get_fastq_sets,
+    get_fastq_list_rows_in_fastq_set
+)
 from orcabus_api_tools.fastq.models import Fastq
 
 
@@ -28,7 +33,14 @@ def handler(event, context):
     :return:
     """
 
-    library_id = event.get("libraryId")
+    library_id: str = event.get("libraryId")
+    rgid_list: Optional[List[str]] = event.get("rgidList", None)
+
+    # Check if rgids have been provided
+    if rgid_list is not None:
+        return {
+            "fastqRgidList": rgid_list
+        }
 
     fastq_sets = get_fastq_sets(
         library=library_id,

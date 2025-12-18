@@ -1,6 +1,5 @@
 /* Imports */
 import path from 'path';
-import { StageName } from '@orcabus/platform-cdk-constructs/shared-config/accounts';
 import { AnnotationVersionType, GenomeVersionType, WorkflowVersionType } from './interfaces';
 import { DATA_SCHEMA_REGISTRY_NAME } from '@orcabus/platform-cdk-constructs/shared-config/event-bridge';
 
@@ -158,13 +157,6 @@ export const ICAV2_WES_EVENT_SOURCE = 'orcabus.icav2wesmanager';
 // Yet to implement draft events into this service
 export const SCHEMA_REGISTRY_NAME = DATA_SCHEMA_REGISTRY_NAME;
 export const SSM_SCHEMA_ROOT = path.join(SSM_PARAMETER_PATH_PREFIX, 'schemas');
-
-/* Future proofing */
-export const NEW_WORKFLOW_MANAGER_IS_DEPLOYED: Record<StageName, boolean> = {
-  BETA: true,
-  GAMMA: true,
-  PROD: true,
-};
 
 // Used to group event rules and step functions
 export const STACK_PREFIX = 'orca-arriba-wgts-rna';
