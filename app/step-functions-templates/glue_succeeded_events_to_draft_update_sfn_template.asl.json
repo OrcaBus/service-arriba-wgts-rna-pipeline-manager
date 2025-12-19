@@ -10,7 +10,8 @@
         "libraries": "{% $states.input.libraries %}",
         "upstreamWorkflowName": "{% $states.input.workflow.name %}",
         "upstreamWorkflowVersion": "{% $states.input.workflow.version %}",
-        "analysisRunId": "{% $states.input.analysisRun ? $states.input.analysisRun.orcabusId : null %}"
+        "analysisRunId": "{% $states.input.analysisRun ? $states.input.analysisRun.orcabusId : null %}",
+        "rgidList": "{% $states.input.libraries.(readsets).(rgid) ? [ $states.input.libraries.(readsets).(rgid) ] : null %}"
       }
     },
     "Get workflow run object": {
@@ -53,7 +54,8 @@
           "workflowName": "${__workflow_name__}",
           "libraries": "{% $libraries %}",
           "analysisRunId": "{% $analysisRunId %}",
-          "status": "${__draft_status__}"
+          "status": "${__draft_status__}",
+          "rgidList": "{% $rgidList %}"
         }
       },
       "Retry": [
@@ -72,223 +74,217 @@
       ],
       "Next": "Did we get a arriba portal run id",
       "Assign": {
-        "draftPortalRunId": "{% $states.result.Payload.workflowRunObject.portalRunId ? $states.result.Payload.workflowRunObject.portalRunId : null %}"
+        "draftPortalRunIdList": "{% $states.result.Payload.workflowRunList ? $states.result.Payload.workflowRunList.(portalRunId) : null %}"
       }
     },
     "Did we get a arriba portal run id": {
       "Type": "Choice",
       "Choices": [
         {
-          "Next": "Get arriba rna draft payload",
-          "Condition": "{% $draftPortalRunId ? true : false %}"
+          "Next": "For each draft portal run id",
+          "Condition": "{% $draftPortalRunIdList ? true : false %}"
         }
       ],
       "Default": "No arriba portal run id found"
     },
-    "Get arriba rna draft payload": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Assign": {
-        "draftPayload": "{% $states.result.Payload.payload %}"
-      },
-      "Arguments": {
-        "FunctionName": "${__get_draft_payload_lambda_function_arn__}",
-        "Payload": {
-          "portalRunId": "{% $draftPortalRunId %}"
+    "For each draft portal run id": {
+      "Type": "Map",
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "INLINE"
+        },
+        "StartAt": "Set map vars",
+        "States": {
+          "Set map vars": {
+            "Type": "Pass",
+            "Assign": {
+              "draftPortalRunIdMapIter": "{% $states.input %}"
+            },
+            "Next": "Get arriba rna draft payload"
+          },
+          "Get arriba rna draft payload": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Assign": {
+              "draftPayload": "{% $states.result.Payload.payload %}"
+            },
+            "Arguments": {
+              "FunctionName": "${__get_draft_payload_lambda_function_arn__}",
+              "Payload": {
+                "portalRunId": "{% $draftPortalRunIdMapIter %}"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2,
+                "JitterStrategy": "FULL"
+              }
+            ],
+            "Next": "Get workflows"
+          },
+          "Get workflows": {
+            "Type": "Parallel",
+            "Branches": [
+              {
+                "StartAt": "Get dragen rna outputs from portal run id",
+                "States": {
+                  "Get dragen rna outputs from portal run id": {
+                    "Type": "Task",
+                    "Resource": "arn:aws:states:::lambda:invoke",
+                    "Output": {
+                      "alignmentData": "{% $states.result.Payload %}"
+                    },
+                    "Arguments": {
+                      "FunctionName": "${__get_dragen_rna_outputs_from_portal_run_id_lambda_function_arn__}",
+                      "Payload": {
+                        "portalRunId": "{% $upstreamPortalRunId %}"
+                      }
+                    },
+                    "Retry": [
+                      {
+                        "ErrorEquals": [
+                          "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException",
+                          "Lambda.TooManyRequestsException"
+                        ],
+                        "IntervalSeconds": 1,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2,
+                        "JitterStrategy": "FULL"
+                      },
+                      {
+                        "ErrorEquals": ["StopIteration"],
+                        "BackoffRate": 2,
+                        "IntervalSeconds": 100,
+                        "MaxAttempts": 3
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              {
+                "StartAt": "Placeholder (Get Workflows)",
+                "States": {
+                  "Placeholder (Get Workflows)": {
+                    "Type": "Pass",
+                    "End": true
+                  }
+                }
+              }
+            ],
+            "Assign": {
+              "newWorkflowInputs": "{% $states.result ~> $merge %}"
+            },
+            "Next": "Add workflow outputs to arriba inputs"
+          },
+          "Add workflow outputs to arriba inputs": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Assign": {
+              "draftWorkflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}",
+              "newDraftPayload": "{% $states.result.Payload.workflowRunUpdate.payload %}"
+            },
+            "Arguments": {
+              "FunctionName": "${__generate_wru_event_object_with_merged_data_lambda_function_arn__}",
+              "Payload": {
+                "portalRunId": "{% $draftPortalRunIdMapIter %}",
+                "payload": "{% $draftPayload %}",
+                "upstreamData": "{% $newWorkflowInputs %}"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2,
+                "JitterStrategy": "FULL"
+              }
+            ],
+            "Next": "Check payload has changed"
+          },
+          "Check payload has changed": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Output": {
+              "hasChanged": "{% $states.result.Payload.hasChanged %}"
+            },
+            "Arguments": {
+              "FunctionName": "${__compare_payload_lambda_function_arn__}",
+              "Payload": {
+                "oldPayload": "{% $draftPayload %}",
+                "newPayload": "{% $newDraftPayload %}"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 1,
+                "MaxAttempts": 3,
+                "BackoffRate": 2,
+                "JitterStrategy": "FULL"
+              }
+            ],
+            "Next": "Payload has changed"
+          },
+          "No changes": {
+            "Type": "Pass",
+            "End": true
+          },
+          "Payload has changed": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Condition": "{% $states.input.hasChanged ? true : false %}",
+                "Next": "Put WRU Update",
+                "Comment": "Payload differs to previous one"
+              }
+            ],
+            "Default": "No changes"
+          },
+          "Put WRU Update": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::events:putEvents",
+            "Arguments": {
+              "Entries": [
+                {
+                  "Detail": "{% $merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime\n  }\n])\n/* Remove null inputs like id */\n~> $sift(function($v, $k){$v != null}) %}",
+                  "DetailType": "${__workflow_run_update_event_detail_type__}",
+                  "EventBusName": "${__event_bus_name__}",
+                  "Source": "${__stack_source__}"
+                }
+              ]
+            },
+            "End": true
+          }
         }
       },
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
-          ],
-          "IntervalSeconds": 1,
-          "MaxAttempts": 3,
-          "BackoffRate": 2,
-          "JitterStrategy": "FULL"
-        }
-      ],
-      "Next": "Get workflows"
+      "Items": "{% $draftPortalRunIdList %}",
+      "End": true
     },
     "No arriba portal run id found": {
       "Type": "Pass",
       "End": true
-    },
-    "Put WRU Update (new)": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::events:putEvents",
-      "Arguments": {
-        "Entries": [
-          {
-            "Detail": "{% $merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime\n  }\n])\n/* Remove null inputs like id */\n~> $sift(function($v, $k){$v != null}) %}",
-            "DetailType": "${__workflow_run_update_event_detail_type__}",
-            "EventBusName": "${__event_bus_name__}",
-            "Source": "${__stack_source__}"
-          }
-        ]
-      },
-      "End": true
-    },
-    "Put WRSC Draft Event (legacy)": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::events:putEvents",
-      "Arguments": {
-        "Entries": [
-          {
-            "Detail": "{% /* https://try.jsonata.org/r0aCmiix- */\n$merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime,\n    \"libraries\": ($libraries ~> | $ | {}, [\"readsets\"] |)\n  }\n]) ~>\n/* Renamed libraries to linkedLibraries using the transform method */\n| $ | {\"linkedLibraries\": libraries}, [\"libraries\"] | ~>\n/* Renamed workflowName and workflowVersion using the transform method */\n| $ | {\"workflowName\": workflow.name, \"workflowVersion\": workflow.version}, [\"workflow\"] | %}",
-            "DetailType": "${__workflow_run_state_change_event_detail_type__}",
-            "EventBusName": "${__event_bus_name__}",
-            "Source": "${__stack_source__}"
-          }
-        ]
-      },
-      "End": true
-    },
-    "No changes": {
-      "Type": "Pass",
-      "End": true
-    },
-    "Get workflows": {
-      "Type": "Parallel",
-      "Branches": [
-        {
-          "StartAt": "Get dragen rna outputs from portal run id",
-          "States": {
-            "Get dragen rna outputs from portal run id": {
-              "Type": "Task",
-              "Resource": "arn:aws:states:::lambda:invoke",
-              "Output": {
-                "alignmentData": "{% $states.result.Payload %}"
-              },
-              "Arguments": {
-                "FunctionName": "${__get_dragen_rna_outputs_from_portal_run_id_lambda_function_arn__}",
-                "Payload": {
-                  "portalRunId": "{% $upstreamPortalRunId %}"
-                }
-              },
-              "Retry": [
-                {
-                  "ErrorEquals": [
-                    "Lambda.ServiceException",
-                    "Lambda.AWSLambdaException",
-                    "Lambda.SdkClientException",
-                    "Lambda.TooManyRequestsException"
-                  ],
-                  "IntervalSeconds": 1,
-                  "MaxAttempts": 3,
-                  "BackoffRate": 2,
-                  "JitterStrategy": "FULL"
-                },
-                {
-                  "ErrorEquals": ["StopIteration"],
-                  "BackoffRate": 2,
-                  "IntervalSeconds": 100,
-                  "MaxAttempts": 3
-                }
-              ],
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "Placeholder (Get Workflows)",
-          "States": {
-            "Placeholder (Get Workflows)": {
-              "Type": "Pass",
-              "End": true
-            }
-          }
-        }
-      ],
-      "Next": "Add workflow outputs to arriba inputs",
-      "Assign": {
-        "newWorkflowInputs": "{% $states.result ~> $merge %}"
-      }
-    },
-    "Add workflow outputs to arriba inputs": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Assign": {
-        "draftWorkflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}",
-        "newDraftPayload": "{% $states.result.Payload.workflowRunUpdate.payload %}"
-      },
-      "Arguments": {
-        "FunctionName": "${__generate_wru_event_object_with_merged_data_lambda_function_arn__}",
-        "Payload": {
-          "portalRunId": "{% $draftPortalRunId %}",
-          "payload": "{% $draftPayload %}",
-          "upstreamData": "{% $newWorkflowInputs %}"
-        }
-      },
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
-          ],
-          "IntervalSeconds": 1,
-          "MaxAttempts": 3,
-          "BackoffRate": 2,
-          "JitterStrategy": "FULL"
-        }
-      ],
-      "Next": "Check payload has changed"
-    },
-    "Check payload has changed": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Output": {
-        "hasChanged": "{% $states.result.Payload.hasChanged %}"
-      },
-      "Arguments": {
-        "FunctionName": "${__compare_payload_lambda_function_arn__}",
-        "Payload": {
-          "oldPayload": "{% $draftPayload %}",
-          "newPayload": "{% $newDraftPayload %}"
-        }
-      },
-      "Retry": [
-        {
-          "ErrorEquals": [
-            "Lambda.ServiceException",
-            "Lambda.AWSLambdaException",
-            "Lambda.SdkClientException",
-            "Lambda.TooManyRequestsException"
-          ],
-          "IntervalSeconds": 1,
-          "MaxAttempts": 3,
-          "BackoffRate": 2,
-          "JitterStrategy": "FULL"
-        }
-      ],
-      "Next": "Payload has changed"
-    },
-    "Payload has changed": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Condition": "{% $states.input.hasChanged ? true : false %}",
-          "Next": "New workflow manager is deployed",
-          "Comment": "Payload differs to previous one"
-        }
-      ],
-      "Default": "No changes"
-    },
-    "New workflow manager is deployed": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Condition": "{% ${__new_workflow_manager_is_deployed__} %}",
-          "Next": "Put WRU Update (new)",
-          "Comment": "Is the new workflow manager deployed in this account"
-        }
-      ],
-      "Default": "Put WRSC Draft Event (legacy)"
     }
   },
   "QueryLanguage": "JSONata"

@@ -6,13 +6,14 @@
       "Type": "Pass",
       "Next": "Validate draft data",
       "Assign": {
-        "draftDetail": "{% $states.input %}",
-        "draftLibrariesList": "{% $states.input.libraries %}",
-        "draftPayload": "{% (\n  $states.input.payload ? \n  $states.input.payload : {\n    \"version\": \"${__default_payload_version__}\"\n  }\n) %}",
-        "draftData": "{% $states.input.payload.data ? $states.input.payload.data : {} %}",
-        "draftEngineParameters": "{% $states.input.payload.data.engineParameters ? $states.input.payload.data.engineParameters : {} %}",
-        "draftTags": "{% $states.input.payload.data.tags ? $states.input.payload.data.tags : {} %}",
-        "draftInputs": "{% $states.input.payload.data.inputs ? $states.input.payload.data.inputs : {} %}"
+        "detail": "{% $states.input %}",
+        "libraryList": "{% $states.input.libraries %}",
+        "rgidList": "{% $states.input.libraries.(readsets).(rgid) ? [ $states.input.libraries.(readsets).(rgid) ] : null %}",
+        "payload": "{% (\n  $states.input.payload ? \n  $states.input.payload : {\n    \"version\": \"${__default_payload_version__}\"\n  }\n) %}",
+        "data": "{% $states.input.payload.data ? $states.input.payload.data : {} %}",
+        "engineParameters": "{% $states.input.payload.data.engineParameters ? $states.input.payload.data.engineParameters : {} %}",
+        "tags": "{% $states.input.payload.data.tags ? $states.input.payload.data.tags : {} %}",
+        "inputs": "{% $states.input.payload.data.inputs ? $states.input.payload.data.inputs : {} %}"
       }
     },
     "Validate draft data": {
@@ -21,7 +22,7 @@
       "Output": "{% $states.result.Payload %}",
       "Arguments": {
         "FunctionName": "${__validate_draft_data_complete_schema_lambda_function_arn__}",
-        "Payload": "{% $draftData %}"
+        "Payload": "{% $data %}"
       },
       "Retry": [
         {
@@ -56,7 +57,7 @@
       "Arguments": {
         "FunctionName": "${__get_workflow_run_object_lambda_function_arn__}",
         "Payload": {
-          "portalRunId": "{% $draftDetail.portalRunId %}"
+          "portalRunId": "{% $detail.portalRunId %}"
         }
       },
       "Retry": [
@@ -84,7 +85,7 @@
         {
           "Comment": "All libraries in tags",
           "Next": "Get Engine parameters",
-          "Condition": "{% /* https://try.jsonata.org/XDJvywd0c */\n/* Compare the draft tags to the libraries */\n/* Get the draft tags */\n(\n    [ \n        $draftTags.(libraryId)\n    ] ~> $sort\n)\n=\n/* Get the draft detail libraries */ \n(\n    [\n        $draftLibrariesList.(libraryId)\n    ] ~> $sort \n) %}"
+          "Condition": "{% /* https://try.jsonata.org/XDJvywd0c */\n/* Compare the draft tags to the libraries */\n/* Get the draft tags */\n(\n    [ \n        $tags.(libraryId)\n    ] ~> $sort\n)\n=\n/* Get the draft detail libraries */ \n(\n    [\n        $libraryList.(libraryId)\n    ] ~> $sort \n) %}"
         }
       ],
       "Default": "Get primitive tags from linked libraries"
@@ -95,7 +96,7 @@
       "Arguments": {
         "FunctionName": "${__get_libraries_lambda_function_arn__}",
         "Payload": {
-          "libraries": "{% $draftLibrariesList %}"
+          "libraries": "{% $libraryList %}"
         }
       },
       "Retry": [
@@ -114,7 +115,7 @@
       ],
       "Next": "Get Engine parameters",
       "Assign": {
-        "draftTags": "{% $merge(\n  [\n    $states.result.Payload,\n    $draftTags\n  ]\n) %}"
+        "tags": "{% $merge(\n  [\n    $states.result.Payload,\n    $tags\n  ]\n) %}"
       }
     },
     "Success": {
@@ -132,7 +133,7 @@
               "Choices": [
                 {
                   "Next": "Use provided project id",
-                  "Condition": "{% $draftEngineParameters.projectId ? true : false %}",
+                  "Condition": "{% $engineParameters.projectId ? true : false %}",
                   "Comment": "Project ID Provided"
                 }
               ],
@@ -142,7 +143,7 @@
               "Type": "Pass",
               "End": true,
               "Output": {
-                "projectId": "{% $draftEngineParameters.projectId %}"
+                "projectId": "{% $engineParameters.projectId %}"
               }
             },
             "Get Default Project Id": {
@@ -166,7 +167,7 @@
               "Choices": [
                 {
                   "Next": "Use provided pipeline id",
-                  "Condition": "{% ($draftEngineParameters.pipelineId ? $draftEngineParameters.pipelineId : $draftDetail.workflow.executionEnginePipelineId ) ? true : false %}",
+                  "Condition": "{% ($engineParameters.pipelineId ? $engineParameters.pipelineId : $detail.workflow.executionEnginePipelineId ) ? true : false %}",
                   "Comment": "Pipeline ID Provided"
                 }
               ],
@@ -176,13 +177,13 @@
               "Type": "Pass",
               "End": true,
               "Output": {
-                "pipelineId": "{% $draftEngineParameters.pipelineId ? $draftEngineParameters.pipelineId : $draftDetail.workflow.executionEnginePipelineId %}"
+                "pipelineId": "{% $engineParameters.pipelineId ? $engineParameters.pipelineId : $detail.workflow.executionEnginePipelineId %}"
               }
             },
             "Get default pipeline id": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__workflow_id_to_pipeline_id_ssm_parameter_path_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__workflow_id_to_pipeline_id_ssm_parameter_path_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
@@ -200,7 +201,7 @@
               "Choices": [
                 {
                   "Next": "Use provided output uri",
-                  "Condition": "{% $draftEngineParameters.outputUri ? true : false %}",
+                  "Condition": "{% $engineParameters.outputUri ? true : false %}",
                   "Comment": "Output URI Provided"
                 }
               ],
@@ -210,7 +211,7 @@
               "Type": "Pass",
               "End": true,
               "Output": {
-                "outputUri": "{% $draftEngineParameters.outputUri %}"
+                "outputUri": "{% $engineParameters.outputUri %}"
               }
             },
             "Get default output uri prefix": {
@@ -221,7 +222,7 @@
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
               "Output": {
-                "outputUri": "{% $states.result.Parameter.Value & $draftDetail.portalRunId & '/' %}"
+                "outputUri": "{% $states.result.Parameter.Value & $detail.portalRunId & '/' %}"
               }
             }
           }
@@ -234,7 +235,7 @@
               "Choices": [
                 {
                   "Next": "Use provided logs uri",
-                  "Condition": "{% $draftEngineParameters.logsUri ? true : false %}",
+                  "Condition": "{% $engineParameters.logsUri ? true : false %}",
                   "Comment": "Logs URI Provided"
                 }
               ],
@@ -244,7 +245,7 @@
               "Type": "Pass",
               "End": true,
               "Output": {
-                "logsUri": "{% $draftEngineParameters.logsUri %}"
+                "logsUri": "{% $engineParameters.logsUri %}"
               }
             },
             "Get default logs uri prefix": {
@@ -255,14 +256,14 @@
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
               "Output": {
-                "logsUri": "{% $states.result.Parameter.Value & $draftDetail.portalRunId & '/' %}"
+                "logsUri": "{% $states.result.Parameter.Value & $detail.portalRunId & '/' %}"
               }
             }
           }
         }
       ],
       "Assign": {
-        "engineParameters": "{% /* https://try.jsonata.org/6nUH8BUBr */\n [ $draftEngineParameters, $merge($states.result) ] ~> $merge  %}"
+        "engineParameters": "{% /* https://try.jsonata.org/6nUH8BUBr */\n [ $engineParameters, $merge($states.result) ] ~> $merge  %}"
       }
     },
     "Get tags": {
@@ -277,7 +278,8 @@
               "Arguments": {
                 "FunctionName": "${__get_fastq_rgids_from_library_id_lambda_function_arn__}",
                 "Payload": {
-                  "libraryId": "{% $draftTags.libraryId %}"
+                  "libraryId": "{% $tags.libraryId %}",
+                  "rgidList": "{% $rgidList %}"
                 }
               },
               "Retry": [
@@ -310,7 +312,7 @@
               "Arguments": {
                 "FunctionName": "${__get_metadata_tags_lambda_function_arn__}",
                 "Payload": {
-                  "libraryId": "{% $draftTags.libraryId %}"
+                  "libraryId": "{% $tags.libraryId %}"
                 }
               },
               "Retry": [
@@ -338,7 +340,7 @@
       ],
       "Next": "Get libraries with readsets",
       "Assign": {
-        "tags": "{% /* https://try.jsonata.org/05K2l3beH */\n/* List to merge together */\n[\n    /* Start with the draft tags */\n    $draftTags,\n    /* Merge the results list together */\n    $merge($states.result)\n] \n/* Then merge these initial tags with states.result  */\n~> $merge\n/* Remove any keys with values */\n~> $sift(function($v, $k){$v != null}) %}"
+        "tags": "{% /* https://try.jsonata.org/05K2l3beH */\n/* List to merge together */\n[\n    /* Start with the draft tags */\n    $tags,\n    /* Merge the results list together */\n    $merge($states.result)\n] \n/* Then merge these initial tags with states.result  */\n~> $merge\n/* Remove any keys with values */\n~> $sift(function($v, $k){$v != null}) %}"
       }
     },
     "Get libraries with readsets": {
@@ -390,7 +392,7 @@
               },
               "End": true,
               "Output": {
-                "library": "{% [\n  /* Draft libraries list */\n  $draftLibrariesList ~>\n  $single(function($libraryIter){\n    $libraryIter.libraryId = $tags.libraryId\n  }),\n  {\n    \"readsets\": $states.result\n  }\n] ~>\n$merge %}"
+                "library": "{% [\n  /* Draft libraries list */\n  $libraryList ~>\n  $single(function($libraryIter){\n    $libraryIter.libraryId = $tags.libraryId\n  }),\n  {\n    \"readsets\": $states.result\n  }\n] ~>\n$merge %}"
               }
             }
           }
@@ -407,7 +409,7 @@
         }
       ],
       "Assign": {
-        "libraries": "{% $states.result.(library) %}"
+        "libraryList": "{% $states.result.(library) %}"
       }
     },
     "Get inputs": {
@@ -420,13 +422,13 @@
               "Type": "Task",
               "Resource": "arn:aws:states:::lambda:invoke",
               "Assign": {
-                "upstreamWorkflowRunObject": "{% $states.result.Payload.workflowRunObject %}"
+                "upstreamWorkflowRunObject": "{% $states.result.Payload.workflowRunList? $states.result.Payload.workflowRunList[0] : null %}"
               },
               "Arguments": {
                 "FunctionName": "${__find_latest_workflow_lambda_function_arn__}",
                 "Payload": {
                   "workflowName": "${__dragen_wgts_rna_workflow_name__}",
-                  "libraries": "{% [$draftLibrariesList] %}",
+                  "libraries": "{% [$libraryList] %}",
                   "analysisRunId": "{% $draftWorkflowRunObject.analysisRun ? $draftWorkflowRunObject.analysisRun.orcabusId : null %}",
                   "status": "${__succeeded_status__}"
                 }
@@ -505,7 +507,7 @@
       ],
       "Next": "Add reference data",
       "Assign": {
-        "draftInputs": "{% /* https://try.jsonata.org/ZAkTIin-h */\n[\n  /* Then take what weve got in the draft inputs */\n  $draftInputs,\n  /* Combine the states results for the dragen rna outputs */\n  (\n   [\n     $states.result\n   ] ~> $merge\n  ),\n  /* Add in the required sampleName */\n  /* These must match the value of the library id */\n  {\n    \"sampleName\": $draftTags.libraryId\n  }  \n]\n/* Combine list of objects */\n~> $merge\n/* Sift out inputs with null values */\n~> $sift(function($v, $k){ $v != null }) %}"
+        "inputs": "{% /* https://try.jsonata.org/ZAkTIin-h */\n[\n  /* Then take what weve got in the draft inputs */\n  $inputs,\n  /* Combine the states results for the dragen rna outputs */\n  (\n   [\n     $states.result\n   ] ~> $merge\n  ),\n  /* Add in the required sampleName */\n  /* These must match the value of the library id */\n  {\n    \"sampleName\": $tags.libraryId\n  }  \n]\n/* Combine list of objects */\n~> $merge\n/* Sift out inputs with null values */\n~> $sift(function($v, $k){ $v != null }) %}"
       }
     },
     "Add reference data": {
@@ -519,7 +521,7 @@
               "Choices": [
                 {
                   "Next": "Set reference fasta as is",
-                  "Condition": "{% $draftInputs.referenceFasta ? true : false %}"
+                  "Condition": "{% $inputs.referenceFasta ? true : false %}"
                 }
               ],
               "Default": "Get default reference version"
@@ -532,7 +534,7 @@
             "Get default reference version": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__reference_version_ssm_parameter_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__reference_version_ssm_parameter_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "Next": "Get reference path from reference version",
@@ -561,7 +563,7 @@
               "Choices": [
                 {
                   "Next": "Annotation file as is",
-                  "Condition": "{% $draftInputs.annotationGtf ? true : false %}"
+                  "Condition": "{% $inputs.annotationGtf ? true : false %}"
                 }
               ],
               "Default": "Get default annotation version"
@@ -574,7 +576,7 @@
             "Get default annotation version": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__annotation_version_ssm_parameter_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__annotation_version_ssm_parameter_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "Next": "Get annotation path from annotation version",
@@ -603,7 +605,7 @@
               "Choices": [
                 {
                   "Next": "Set blacklist as is",
-                  "Condition": "{% $draftInputs.blacklistTsv ? true : false %}"
+                  "Condition": "{% $inputs.blacklistTsv ? true : false %}"
                 }
               ],
               "Default": "Get blacklist"
@@ -616,7 +618,7 @@
             "Get blacklist": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__blacklist_path_ssm_parameter_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__blacklist_path_ssm_parameter_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
@@ -634,7 +636,7 @@
               "Choices": [
                 {
                   "Next": "Set cytobands as is",
-                  "Condition": "{% $draftInputs.cytobandsTsv ? true : false %}"
+                  "Condition": "{% $inputs.cytobandsTsv ? true : false %}"
                 }
               ],
               "Default": "Get cytobands"
@@ -647,7 +649,7 @@
             "Get cytobands": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__cytoband_path_ssm_parameter_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__cytoband_path_ssm_parameter_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
@@ -665,7 +667,7 @@
               "Choices": [
                 {
                   "Next": "Set protein domains as is",
-                  "Condition": "{% $draftInputs.proteinDomainsGff3 ? true : false %}"
+                  "Condition": "{% $inputs.proteinDomainsGff3 ? true : false %}"
                 }
               ],
               "Default": "Get Protein Domains"
@@ -678,7 +680,7 @@
             "Get Protein Domains": {
               "Type": "Task",
               "Arguments": {
-                "Name": "{% '${__protein_domain_path_ssm_parameter_prefix__}/' & $draftDetail.workflow.version %}"
+                "Name": "{% '${__protein_domain_path_ssm_parameter_prefix__}/' & $detail.workflow.version %}"
               },
               "Resource": "arn:aws:states:::aws-sdk:ssm:getParameter",
               "End": true,
@@ -691,7 +693,7 @@
       ],
       "Next": "Make new WRU event",
       "Assign": {
-        "draftInputs": "{% /* https://try.jsonata.org/ZAkTIin-h */\n[\n  $draftInputs,\n  ([$states.result] ~> $merge)\n] ~> $merge\n/* Sift out inputs with null values */\n~> $sift(function($v, $k){ $v != null }) %}"
+        "inputs": "{% /* https://try.jsonata.org/ZAkTIin-h */\n[\n  $inputs,\n  ([$states.result] ~> $merge)\n] ~> $merge\n/* Sift out inputs with null values */\n~> $sift(function($v, $k){ $v != null }) %}"
       }
     },
     "Make new WRU event": {
@@ -701,12 +703,12 @@
       "Arguments": {
         "FunctionName": "${__generate_wru_event_object_with_merged_data_lambda_function_arn__}",
         "Payload": {
-          "portalRunId": "{% $draftDetail.portalRunId %}",
-          "libraries": "{% [$libraries] %}",
+          "portalRunId": "{% $detail.portalRunId %}",
+          "libraries": "{% [$libraryList] %}",
           "payload": {
-            "version": "{% $draftPayload.version ? $draftPayload.version : '${__default_payload_version__}' %}",
+            "version": "{% $payload.version ? $payload.version : '${__default_payload_version__}' %}",
             "data": {
-              "inputs": "{% $draftInputs %}",
+              "inputs": "{% $inputs %}",
               "tags": "{% $tags %}",
               "engineParameters": "{% $engineParameters %}"
             }
@@ -729,7 +731,7 @@
       ],
       "Next": "Compare payload",
       "Assign": {
-        "draftWorkflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}"
+        "workflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}"
       }
     },
     "Compare payload": {
@@ -739,8 +741,8 @@
       "Arguments": {
         "FunctionName": "${__compare_payload_lambda_function_arn__}",
         "Payload": {
-          "oldPayload": "{% $draftPayload ~> \n| $ | {}, [\"orcabusId\", \"refId\"] | %}",
-          "newPayload": "{% $draftWorkflowRunUpdate.payload %}"
+          "oldPayload": "{% $payload ~> \n| $ | {}, [\"orcabusId\", \"refId\"] | %}",
+          "newPayload": "{% $workflowRunUpdate.payload %}"
         }
       },
       "Retry": [
@@ -763,31 +765,20 @@
       "Type": "Choice",
       "Choices": [
         {
-          "Next": "New workflow manager deployed",
+          "Next": "Put DRAFT WRU event",
           "Condition": "{% $states.input.hasChanged %}",
           "Comment": "Payload has changed"
         }
       ],
       "Default": "Skip push event"
     },
-    "New workflow manager deployed": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Condition": "{% ${__new_workflow_manager_is_deployed__} %}",
-          "Comment": "New Workflow Manager is Deployed",
-          "Next": "Put DRAFT update event"
-        }
-      ],
-      "Default": "Push DRAFT Event (legacy)"
-    },
-    "Put DRAFT update event": {
+    "Put DRAFT WRU event": {
       "Type": "Task",
       "Resource": "arn:aws:states:::events:putEvents",
       "Arguments": {
         "Entries": [
           {
-            "Detail": "{% $merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime }\n])\n/* Remove null inputs like id */\n~> $sift(function($v, $k){$v != null}) %}",
+            "Detail": "{% $merge([\n  $workflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime }\n])\n/* Remove null inputs like id */\n~> $sift(function($v, $k){$v != null}) %}",
             "DetailType": "${__workflow_run_update_event_detail_type__}",
             "EventBusName": "${__event_bus_name__}",
             "Source": "${__stack_source__}"
@@ -798,21 +789,6 @@
     },
     "Skip push event": {
       "Type": "Pass",
-      "End": true
-    },
-    "Push DRAFT Event (legacy)": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::events:putEvents",
-      "Arguments": {
-        "Entries": [
-          {
-            "Detail": "{% /* https://try.jsonata.org/r0aCmiix- */\n$merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime,\n    \"libraries\": ([$libraries] ~> | $ | {}, [\"readsets\"] |)\n  }\n]) ~>\n/* Renamed libraries to linkedLibraries using the transform method */\n| $ | {\"linkedLibraries\": libraries}, [\"libraries\"] | ~>\n/* Renamed workflowName and workflowVersion using the transform method */\n| $ | {\"workflowName\": workflow.name, \"workflowVersion\": workflow.version}, [\"workflow\"] | %}",
-            "DetailType": "${__workflow_run_state_change_event_detail_type__}",
-            "EventBusName": "${__event_bus_name__}",
-            "Source": "${__stack_source__}"
-          }
-        ]
-      },
       "End": true
     }
   },
