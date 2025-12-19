@@ -1,45 +1,42 @@
 # Arriba WGTS RNA Pipeline Manager
-================================================================================
 
-- [Service Description](#service-description)
-    - [Name \& responsibility](#name--responsibility)
-    - [Description](#description)
-    - [API Endpoints](#api-endpoints)
-    - [Consumed Events](#consumed-events)
-    - [Published Events](#published-events)
-    - [(Internal) Data states \& persistence model](#internal-data-states--persistence-model)
-    - [Major Business Rules](#major-business-rules)
-    - [Permissions \& Access Control](#permissions--access-control)
-    - [Change Management](#change-management)
-        - [Versioning strategy](#versioning-strategy)
-        - [Release management](#release-management)
+## Table of Contents <!-- omit in toc -->
+
+- [Description](#description)
+  - [Ready Event Creation](#ready-event-creation)
+  - [Consumed Events](#consumed-events)
+  - [Published Events](#published-events)
+  - [Draft Event](#draft-event)
+    - [Draft Event Submission](#draft-event-submission)
+    - [Draft Data Schema Validation](#draft-data-schema-validation)
+  - [Release management](#release-management)
+  - [Related Services](#related-services)
+    - [Upstream Pipelines](#upstream-pipelines)
+    - [Downstream Pipelines](#downstream-pipelines)
+    - [Primary Services](#primary-services)
 - [Infrastructure \& Deployment](#infrastructure--deployment)
-    - [Stateful](#stateful)
-    - [Stateless](#stateless)
-    - [CDK Commands](#cdk-commands)
-    - [Stacks](#stacks)
-    - [Launch from dev](#launch-from-dev)
-        - [Making your own draft events with BASH / JQ (dev)](#making-your-own-draft-events-with-bash--jq-dev)
+  - [Stateful](#stateful)
+  - [Stateless](#stateless)
+  - [CDK Commands](#cdk-commands)
+  - [Stacks](#stacks)
 - [Development](#development)
-    - [Project Structure](#project-structure)
-    - [Setup](#setup)
-        - [Requirements](#requirements)
-        - [Install Dependencies](#install-dependencies)
-        - [First Steps](#first-steps)
-    - [Conventions](#conventions)
-    - [Linting \& Formatting](#linting--formatting)
-    - [Testing](#testing)
+  - [Project Structure](#project-structure)
+  - [Setup](#setup)
+    - [Requirements](#requirements)
+    - [Install Dependencies](#install-dependencies)
+  - [Conventions](#conventions)
+  - [Linting \& Formatting](#linting--formatting)
+  - [Testing](#testing)
 - [Glossary \& References](#glossary--references)
 
 ## Description
---------------------------------------------------------------------------------
 
 This is the Arriba WGTS RNA Pipeline Manager service, responsible for managing and orchestrating the
 Arriba WGTS RNA sequencing workflows within the OrcaBus platform.
 
 The [arriba package](https://github.com/suhrig/arriba) is used for gene fusion detection from RNA-Seq data.
 
-The orchestration logic is per the standard [ICAv2-centric Pipeline Architechture]()
+The orchestration logic is per the standard [ICAv2-centric Pipeline Architecture](https://github.com/OrcaBus/wiki/blob/main/orcabus/platform/pipelines.md#pipeline-orchestration-general-logic)
 
 ### Ready Event Creation
 
@@ -75,10 +72,10 @@ in our SOPs documentation.
 
 #### Draft Data Schema Validation
 
-We hvae generated JSON schemas for the complete DRAFT WRU event **data** which you can find in the
+We have generated JSON schemas for the complete DRAFT WRU event **data** which you can find in the
 [`app/event-schemas` directory](app/event-schemas).
 
-YOu can interactively check if your DRAFT event data payload matches the schema using the following links:
+You can interactively check if your DRAFT event data payload matches the schema using the following links:
 
 - [Complete DRAFT WRU Event Data Schema Page](https://www.jsonschemavalidator.net/s/8tRREgRp)
 
@@ -102,8 +99,7 @@ automatically builds and releases all changes to the `main` code branch.
 - [ICAv2 WES Manager](https://github.com/OrcaBus/service-icav2-wes-manager)
 - [Workflow Manager](https://github.com/OrcaBus/service-workflow-manager)
 
-Infrastructure & Deployment
---------------------------------------------------------------------------------
+## Infrastructure & Deployment
 
 Short description with diagrams where appropriate.
 Deployment settings / configuration (e.g. CodePipeline(s) / automated builds).
@@ -173,7 +169,6 @@ StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusProd
 ```
 
 ## Development
---------------------------------------------------------------------------------
 
 ### Project Structure
 
@@ -239,7 +234,7 @@ make install
 
 ### Linting & Formatting
 
-Automated checks are enforces via pre-commit hooks, ensuring only checked code is committed. For details consult the
+Automated checks are enforced via pre-commit hooks, ensuring only checked code is committed. For details consult the
 `.pre-commit-config.yaml` file.
 
 Manual, on-demand checking is also available via `make` targets (see below). For details consult the `Makefile` in the
@@ -259,15 +254,13 @@ make fix
 
 ### Testing
 
-Unit tests are available for most of the business logic. Test code is hosted alongside business in `/tests/`
-directories.
+Unit tests are available for most of the business logic. Test code is hosted alongside business in `/tests/` directories.
 
 ```sh
 make test
 ```
 
-Glossary & References
---------------------------------------------------------------------------------
+## Glossary & References
 
 For general terms and expressions used across OrcaBus services, please see the
 platform [documentation](https://github.com/OrcaBus/wiki/blob/main/orcabus-platform/README.md#glossary--references).
