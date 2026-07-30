@@ -2,6 +2,10 @@
 import path from 'path';
 import { AnnotationVersionType, GenomeVersionType, WorkflowVersionType } from './interfaces';
 import { DATA_SCHEMA_REGISTRY_NAME } from '@orcabus/platform-cdk-constructs/shared-config/event-bridge';
+import {
+  REFERENCE_DATA_BUCKET,
+  TEST_DATA_BUCKET,
+} from '@orcabus/platform-cdk-constructs/shared-config/s3';
 
 /* Directory constants */
 export const APP_ROOT = path.join(__dirname, '../../app');
@@ -157,6 +161,10 @@ export const ICAV2_WES_EVENT_SOURCE = 'orcabus.icav2wesmanager';
 // Yet to implement draft events into this service
 export const SCHEMA_REGISTRY_NAME = DATA_SCHEMA_REGISTRY_NAME;
 export const SSM_SCHEMA_ROOT = path.join(SSM_PARAMETER_PATH_PREFIX, 'schemas');
+
+/* Bucket constants */
+export const TEST_DATA_BUCKET_NAME = TEST_DATA_BUCKET;
+export const REFERENCE_DATA_BUCKET_NAME = REFERENCE_DATA_BUCKET;
 
 // Used to group event rules and step functions
 export const STACK_PREFIX = 'orca-arriba-wgts-rna';
