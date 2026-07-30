@@ -2,6 +2,10 @@ import { SsmParameterPaths, SsmParameterValues } from './ssm/interfaces';
 
 export type WorkflowVersionType = '2.5.0';
 
+export type PayloadVersionType = '2025.08.05';
+
+export const payloadVersionList: PayloadVersionType[] = ['2025.08.05'];
+
 export type AnnotationVersionType = '44';
 
 export type GenomeVersionType = 'hg38';
