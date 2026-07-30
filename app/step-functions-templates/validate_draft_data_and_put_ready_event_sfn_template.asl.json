@@ -7,6 +7,7 @@
       "Next": "Validate Draft Complete Event",
       "Assign": {
         "detail": "{% $states.input %}",
+        "workflowRunId": "{% $states.input.orcabusId %}",
         "payload": "{% $states.input.payload ? $states.input.payload : {} %}",
         "payloadData": "{% $states.input.payload.data ? $states.input.payload.data : {} %}"
       }
@@ -41,9 +42,50 @@
       "Type": "Choice",
       "Choices": [
         {
-          "Next": "Push READY Event",
+          "Next": "Post Schema Validation",
           "Condition": "{% $states.input.isValid %}",
           "Comment": "Draft is Valid"
+        }
+      ],
+      "Default": "Pass"
+    },
+    "Post Schema Validation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Output": {
+        "isValid": "{% $states.result.Payload.isValid %}"
+      },
+      "Arguments": {
+        "FunctionName": "${__post_schema_validation_lambda_function_arn__}",
+        "Payload": {
+          "workflowRunId": "{% $workflowRunId %}",
+          "executionArn": "{% $states.context.Execution.Id %}",
+          "data": "{% $payloadData %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "Is Post Schema Valid?"
+    },
+    "Is Post Schema Valid?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Push READY Event",
+          "Condition": "{% $states.input.isValid %}",
+          "Comment": "Post schema validation passed"
         }
       ],
       "Default": "Pass"
