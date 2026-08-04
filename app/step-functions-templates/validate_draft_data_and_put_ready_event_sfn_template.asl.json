@@ -8,7 +8,7 @@
       "Assign": {
         "detail": "{% $states.input %}",
         "workflowRunId": "{% $states.input.orcabusId %}",
-        "payload": "{% $states.input.payload ? $states.input.payload : {} %}",
+        "payload": "{% (\n  $states.input.payload ? \n  $states.input.payload : {\n    \"version\": \"${__default_payload_version__}\"\n  }\n) %}",
         "payloadData": "{% $states.input.payload.data ? $states.input.payload.data : {} %}"
       }
     },
@@ -20,7 +20,12 @@
       },
       "Arguments": {
         "FunctionName": "${__validate_draft_data_complete_schema_lambda_function_arn__}",
-        "Payload": "{% $payloadData %}"
+        "Payload": {
+          "data": "{% $payloadData %}",
+          "payloadVersion": "{% $payload.version %}",
+          "workflowRunId": "{% $workflowRunId %}",
+          "addCommentOnError": true
+        }
       },
       "Retry": [
         {

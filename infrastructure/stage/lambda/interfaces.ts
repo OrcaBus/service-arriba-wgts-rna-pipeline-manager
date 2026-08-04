@@ -106,8 +106,10 @@ export const lambdaRequirementsMap: Record<LambdaName, LambdaRequirements> = {
   },
   // Validation
   validateDraftDataCompleteSchema: {
+    needsOrcabusApiTools: true,
     needsSchemaRegistryAccess: true,
     needsSsmParametersAccess: true,
+    needsWorkflowInfo: true,
   },
   postSchemaValidation: {
     needsOrcabusApiTools: true,
