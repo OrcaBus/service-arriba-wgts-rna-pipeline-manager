@@ -3,7 +3,6 @@
 - Version: 1.0
 - Contact: Alexis Lucattini, [alexisl@unimelb.edu.au](mailto:alexisl@unimelb.edu.au)
 
-
 Before promoting a new pipeline version to production, we need to validate that the pipeline runs correctly
 against a known set of test inputs and produces expected results.
 
@@ -14,7 +13,6 @@ against a known set of test inputs and produces expected results.
   - [3. Monitor Execution](#3-monitor-execution)
   - [4. Validate Outputs](#4-validate-outputs)
 - [Sign-off](#sign-off)
-
 
 ## Prerequisites
 
