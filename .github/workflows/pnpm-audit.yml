@@ -125,7 +125,8 @@ jobs:
         run: |
           set -o pipefail
           # Try a standard upgrade to resolve vulnerabilities
-          pnpm upgrade
+          # --ignore-scripts avoids running lifecycle hooks (e.g. prepare: pre-commit install)
+          pnpm upgrade --ignore-scripts
 
           # Re-run audit to see if upgrade resolved issues
           if pnpm audit 2>&1 | tee audit-after-upgrade.txt; then
