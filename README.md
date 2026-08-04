@@ -1,266 +1,274 @@
 # Arriba WGTS RNA Pipeline Manager
 
-## Table of Contents <!-- omit in toc -->
-
-- [Description](#description)
-  - [Ready Event Creation](#ready-event-creation)
+- [Overview](#overview)
+- [Pipeline State Flow](#pipeline-state-flow)
+  - [1. DRAFT → populated DRAFT](#1-draft--populated-draft)
+  - [2. Populated DRAFT → READY](#2-populated-draft--ready)
+  - [3. READY → ICAv2 submission](#3-ready--icav2-submission)
+  - [4. ICAv2 state changes → WorkflowRunUpdate events](#4-icav2-state-changes--workflowrunupdate-events)
+  - [5. Upstream SUCCEEDED → DRAFT update (Glue)](#5-upstream-succeeded--draft-update-glue)
+- [Event Contract](#event-contract)
   - [Consumed Events](#consumed-events)
   - [Published Events](#published-events)
-  - [Draft Event](#draft-event)
-    - [Draft Event Submission](#draft-event-submission)
-    - [Draft Data Schema Validation](#draft-data-schema-validation)
-  - [Release management](#release-management)
-  - [Related Services](#related-services)
-    - [Upstream Pipelines](#upstream-pipelines)
-    - [Downstream Pipelines](#downstream-pipelines)
-    - [Primary Services](#primary-services)
-- [Infrastructure \& Deployment](#infrastructure--deployment)
-  - [Stateful](#stateful)
-  - [Stateless](#stateless)
-  - [CDK Commands](#cdk-commands)
+- [Draft Event Payload](#draft-event-payload)
+  - [Minimal DRAFT event detail](#minimal-draft-event-detail)
+  - [Auto-populated Fields](#auto-populated-fields)
+  - [Schema Validation](#schema-validation)
+- [Submitting a Draft Event](#submitting-a-draft-event)
+- [Infrastructure](#infrastructure)
+  - [Stateful Resources](#stateful-resources)
+  - [Stateless Resources](#stateless-resources)
   - [Stacks](#stacks)
-- [Development](#development)
-  - [Project Structure](#project-structure)
-  - [Setup](#setup)
-    - [Requirements](#requirements)
-    - [Install Dependencies](#install-dependencies)
-  - [Conventions](#conventions)
-  - [Linting \& Formatting](#linting--formatting)
-  - [Testing](#testing)
-- [Glossary \& References](#glossary--references)
+- [CI/CD and Release Management](#cicd-and-release-management)
+- [Related Services](#related-services)
+- [SOPs](#sops)
+- [Glossary & References](#glossary--references)
 
-## Description
+---
 
-This is the Arriba WGTS RNA Pipeline Manager service, responsible for managing and orchestrating the
-Arriba WGTS RNA sequencing workflows within the OrcaBus platform.
+## Overview
 
-The [arriba package](https://github.com/suhrig/arriba) is used for gene fusion detection from RNA-Seq data.
+This service manages the lifecycle of the **Arriba WGTS RNA pipeline** — a gene fusion detection pipeline using the [Arriba](https://github.com/suhrig/arriba) tool for identifying fusion transcripts from RNA-seq data, including visualization of structural variants via cytobands and protein domain annotations.
 
-The orchestration logic is per the standard [ICAv2-centric Pipeline Architecture](https://github.com/OrcaBus/wiki/blob/main/orcabus/platform/pipelines.md#pipeline-orchestration-general-logic)
+The pipeline runs on [ICAv2](https://www.illumina.com/products/by-type/informatics-products/connected-analytics.html) via CWL. See the [CWL releases](https://github.com/umccr/cwl-ica/releases?q=arriba&expanded=true) for versioned workflow definitions. Orchestration follows the standard [ICAv2-centric Pipeline Architecture](https://github.com/OrcaBus/wiki/blob/main/orcabus/platform/pipelines.md#pipeline-orchestration-general-logic).
 
-### Ready Event Creation
+**Upstream**: [Dragen WGTS RNA](https://github.com/OrcaBus/service-dragen-wgts-rna-pipeline-manager) (provides RNA alignment outputs via glue state machine)
+**Downstream**: [RNAsum](https://github.com/OrcaBus/service-rnasum-pipeline-manager)
 
-![Arriba WGTS RNA Pipeline Manager Architecture](./docs/draw-io-exports/draft-to-ready.drawio.svg)
+---
+
+## Pipeline State Flow
+
+The service orchestrates five Step Functions state machines that together drive a workflow run from initial DRAFT submission through to ICAv2 execution and result reporting. As a downstream service, it additionally includes a glue state machine that reacts to upstream Dragen WGTS RNA SUCCEEDED events.
+
+### 1. DRAFT → populated DRAFT
+
+**State machine**: [`populate_draft_data_sfn_template`](app/step-functions-templates/populate_draft_data_sfn_template.asl.json)
+
+![Populate draft data](docs/draw-io-exports/populate-draft-data.svg)
+
+When a `WorkflowRunStateChange` DRAFT event arrives, this state machine populates any missing payload fields by resolving defaults from SSM and querying upstream services:
+
+1. **Resolve engine parameters** — `projectId`, `pipelineId`, `outputUri`, `logsUri` from SSM defaults or event overrides.
+2. **Resolve tags** — library metadata, subject/individual IDs, RGID lists from upstream services.
+3. **Emit a DRAFT update event** if tags or engine parameters changed (so the Workflow Manager record is kept in sync), then continue.
+4. **Resolve inputs** — collects upstream Dragen WGTS RNA alignment outputs (BAM/CRAM) as inputs for Arriba fusion calling.
+5. Emits a final DRAFT update event with the fully populated payload.
+
+### 2. Populated DRAFT → READY
+
+**State machine**: [`validate_draft_data_and_put_ready_event_sfn_template`](app/step-functions-templates/validate_draft_data_and_put_ready_event_sfn_template.asl.json)
+
+![Validate draft and put READY event](docs/draw-io-exports/validate-draft-and-put-ready-event.svg)
+
+Triggered when a DRAFT `WorkflowRunStateChange` event is received with a fully populated payload:
+
+1. **Schema validation** — invokes the `validate_draft_complete_schema` Lambda against the registered AWS Schemas registry entry. On failure, a comment is written back to the workflow run record and the state machine exits silently.
+2. **Post-schema validation** — invokes the `post_schema_validation` Lambda for business-rule checks beyond what JSON Schema can express. On failure, same comment-and-exit behaviour.
+3. **Push READY event** — emits a `WorkflowRunStateChange` READY event to the `OrcaBusMain` EventBridge bus.
+
+### 3. READY → ICAv2 submission
+
+**State machine**: [`ready_event_to_icav2_wes_request_event_sfn_template`](app/step-functions-templates/ready_event_to_icav2_wes_request_event_sfn_template.asl.json)
+
+![READY to ICAv2 WES request](docs/draw-io-exports/ready-to-icav2-wes-request.svg)
+
+Converts a READY event into an `Icav2WesRequest` event that the [ICAv2 WES Manager](https://github.com/OrcaBus/service-icav2-wes-manager) consumes to launch the CWL analysis on ICAv2:
+
+1. **Convert** — the ready-to-ICAv2 Lambda translates the READY event payload into the ICAv2 WES request format.
+2. **Push** — emits an `Icav2WesRequest` event to `OrcaBusMain`.
+
+### 4. ICAv2 state changes → WorkflowRunUpdate events
+
+**State machine**: [`icav2_wes_event_to_wrsc_event_sfn_template`](app/step-functions-templates/icav2_wes_event_to_wrsc_event_sfn_template.asl.json)
+
+![ICAv2 WES event to WRSC](docs/draw-io-exports/icav2-wes-event-to-wrsc.svg)
+
+Listens for `Icav2WesAnalysisStateChange` events and converts them into `WorkflowRunUpdate` events:
+
+1. **Convert** — maps the ICAv2 status to a `WorkflowRunStateChange` event.
+2. **Route by status**:
+   - **SUCCEEDED** — pushes the WRSC event.
+   - **FAILED** — invokes the `add_wes_failure_comment` Lambda to write a failure comment, then pushes the WRSC event.
+   - **Any other status** — pushes the WRSC event directly.
+
+### 5. Upstream SUCCEEDED → DRAFT update (Glue)
+
+**State machine**: [`glue_succeeded_events_to_draft_update_sfn_template`](app/step-functions-templates/glue_succeeded_events_to_draft_update_sfn_template.asl.json)
+
+![Glue succeeded events to DRAFT update](docs/draw-io-exports/glue-succeeded-events-to-draft-update.svg)
+
+Reacts to upstream Dragen WGTS RNA `SUCCEEDED` events to update existing DRAFT workflow runs with new alignment data:
+
+1. **Receive** upstream SUCCEEDED event with portal run ID and libraries.
+2. **Find matching DRAFT runs** — calls `findLatestWorkflow` with `status=DRAFT` for `arriba-wgts-rna`.
+3. **For each DRAFT run** — fetches the DRAFT payload, gets upstream outputs, merges them into the payload.
+4. **If changed** — emits a `WorkflowRunUpdate` DRAFT event with the merged payload.
+5. **If no DRAFT runs found** — exits silently (glue event arrived before DRAFT creation).
+
+---
+
+## Event Contract
 
 ### Consumed Events
 
-| Name / DetailType             | Source                    | Schema Link                                                                                                                                | Description                           |
-|-------------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| `WorkflowRunStateChange`      | `orcabus.workflowmanager` | [WorkflowRunStateChange](https://github.com/OrcaBus/wiki/tree/main/orcabus-platform#workflowrunstatechange)                                | Source of updates on WorkflowRuns     |
-| `Icav2WesAnalysisStateChange` | `orcabus.icav2wes`        | [Icav2WesAnalysisStateChange](https://github.com/OrcaBus/service-icav2-wes-manager/blob/main/app/event-schemas/analysis-state-change.json) | ICAv2 WES Analysis State Change event |
+| DetailType                    | Source                    | Schema                                                                                                                                     | Description                                          |
+|-------------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
+| `WorkflowRunStateChange`      | `orcabus.workflowmanager` | [WorkflowRunStateChange](https://github.com/OrcaBus/wiki/tree/main/orcabus-platform#workflowrunstatechange)                                | Carries DRAFT (and later READY) workflow run records |
+| `Icav2WesAnalysisStateChange` | `orcabus.icav2wes`        | [Icav2WesAnalysisStateChange](https://github.com/OrcaBus/service-icav2-wes-manager/blob/main/app/event-schemas/analysis-state-change.json) | ICAv2 analysis state updates                         |
+| `WorkflowRunStateChange`      | `orcabus.workflowmanager` | [WorkflowRunStateChange](https://github.com/OrcaBus/wiki/tree/main/orcabus-platform#workflowrunstatechange)                                | Upstream dragen-wgts-rna SUCCEEDED events (glue)     |
 
 ### Published Events
 
-| Name / DetailType   | Source                  | Schema Link                                                                                                                                    | Description                    |
-|---------------------|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
-| `WorkflowRunUpdate` | `orcabus.arribawgtsrna` | [WorkflowRunUpdate](https://github.com/OrcaBus/service-workflow-manager/blob/main/docs/events/WorkflowRunUpdate/WorkflowRunUpdate.schema.json) | Announces Workflow Run Updates |
+| DetailType          | Source                            | Schema                                                                                                      | Description                                         |
+|---------------------|-----------------------------------|-------------------------------------------------------------------------------------------------------------|-----------------------------------------------------|
+| `WorkflowRunUpdate` | `orcabus.arribawgtsrna`           | [WorkflowRunUpdate](https://github.com/OrcaBus/wiki/blob/main/orcabus/platform/events.md#workflowrunupdate) | Pipeline state updates (READY, running, succeeded…) |
+| `WorkflowRunUpdate` | `orcabus.arribawgtsrna.validator` | same                                                                                                        | READY event specifically from the validator step    |
 
-### Draft Event
+---
 
-A workflow run must be placed into a DRAFT state before it can be started.
+## Draft Event Payload
 
-This is to ensure that only valid workflow runs are started, and that all required data is present.
+A DRAFT event can be submitted with a minimal `data` payload — the populate state machine resolves all defaults. The `data` object may be omitted entirely. The final validated payload must satisfy the [complete-data draft schema](app/event-schemas/complete-data-draft/).
 
-This service is responsible for both populating and validating draft workflow runs.
+The key driver is the `linkedLibraries` array on the event. Arriba operates on a single RNA library.
 
-A draft event may even be submitted without a payload.
+### Minimal DRAFT event detail
 
-#### Draft Event Submission
-
-To submit an Arriba WGTS RNA draft event, please follow the [PM.AWR.1 SOP](docs/operation/SOP/README.md#PM.AWR.1)
-in our SOPs documentation.
-
-#### Draft Data Schema Validation
-
-We have generated JSON schemas for the complete DRAFT WRU event **data** which you can find in the
-[`app/event-schemas` directory](app/event-schemas).
-
-You can interactively check if your DRAFT event data payload matches the schema using the following links:
-
-- [Complete DRAFT WRU Event Data Schema Page](https://www.jsonschemavalidator.net/s/8tRREgRp)
-
-### Release management
-
-The service employs a fully automated CI/CD pipeline that
-automatically builds and releases all changes to the `main` code branch.
-
-### Related Services
-
-#### Upstream Pipelines
-
-- [Dragen WGTS RNA Pipeline Manager](https://github.com/OrcaBus/service-dragen-wgts-rna-pipeline-manager)
-
-#### Downstream Pipelines
-
-- [RNASum Pipeline Manager](https://github.com/OrcaBus/service-rnasum-pipeline-manager)
-
-#### Primary Services
-
-- [ICAv2 WES Manager](https://github.com/OrcaBus/service-icav2-wes-manager)
-- [Workflow Manager](https://github.com/OrcaBus/service-workflow-manager)
-
-## Infrastructure & Deployment
-
-Short description with diagrams where appropriate.
-Deployment settings / configuration (e.g. CodePipeline(s) / automated builds).
-Infrastructure and deployment are managed via CDK.
-This template provides two types of CDK entry points: `cdk-stateless` and `cdk-stateful`.
-
-### Stateful
-
-- SSM Parameters
-- Event Schemas
-
-### Stateless
-
-- Lambdas
-- Step Functions
-- Event Rules
-- Event Targets (connecting event rules to StepFunctions)
-
-### CDK Commands
-
-You can access CDK commands using the `pnpm` wrapper script.
-
-- **`cdk-stateless`**: Used to deploy stacks containing stateless resources (e.g., AWS Lambda), which can be easily
-  redeployed without side effects.
-- **`cdk-stateful`**: Used to deploy stacks containing stateful resources (e.g., AWS DynamoDB, AWS RDS), where
-  redeployment may not be ideal due to potential side effects.
-
-The type of stack to deploy is determined by the context set in the `./bin/deploy.ts` file. This ensures the correct
-stack is executed based on the provided context.
-
-For example:
-
-```sh
-# Deploy a stateless stack
-pnpm cdk-stateless <command>
-
-# Deploy a stateful stack
-pnpm cdk-stateful <command>
+```json
+{
+  "status": "DRAFT",
+  "workflowName": "arriba-wgts-rna",
+  "workflowVersion": "2.4.0",
+  "workflowRunName": "umccr--automated--arriba-wgts-rna--2-4-0--<portalRunId>",
+  "portalRunId": "<portalRunId>",
+  "linkedLibraries": [
+    { "libraryId": "L2400001", "orcabusId": "lib.01..." }
+  ]
+}
 ```
+
+The `payload.data` object may be included to override any auto-populated fields. An empty or absent `payload.data` is valid.
+
+### Auto-populated Fields
+
+All of the following are resolved by the populate state machine if not explicitly provided:
+
+| Field | Resolved from |
+|---|---|
+| `engineParameters.projectId` | SSM: default ICAv2 project for the environment |
+| `engineParameters.pipelineId` | SSM: pipeline ID map keyed by workflow version |
+| `engineParameters.outputUri` | SSM: output prefix + `portalRunId` |
+| `engineParameters.logsUri` | SSM: logs prefix + `portalRunId` |
+| `tags.libraryId` | From `linkedLibraries` |
+| `tags.fastqRgidList` | Fastq Glue — resolved from `libraryId` |
+| `tags.subjectId` / `individualId` | Metadata service |
+| `inputs.sequenceData` | Upstream Dragen WGTS RNA alignment outputs |
+| `inputs.reference` | SSM: default reference for workflow version |
+
+### Schema Validation
+
+The complete-data schema is registered in the AWS Schemas registry and used for validation in both state machines. You can interactively validate a payload at:
+
+- [JSON Schema Validator — Complete DRAFT data](https://www.jsonschemavalidator.net/s/8tRREgRp)
+
+---
+
+## Submitting a Draft Event
+
+To manually submit an Arriba WGTS RNA DRAFT event (e.g. to trigger a reanalysis), follow:
+
+- [PM.AWR.1 — Manual Pipeline Execution](docs/operation/SOP/PM.AWR.1/PM.AWR.1-ManualPipelineExecution.md)
+
+See the [full SOPs index](docs/operation/SOP/README.md) for all operational procedures including deployment, parameter updates, and troubleshooting.
+
+---
+
+## Infrastructure
+
+The service is deployed via AWS CDK. Resources are split into two stacks: stateful (data/config) and stateless (compute/events).
+
+All SSM parameters live under `/orcabus/workflows/arriba-wgts-rna/`.
+Event bus: `OrcaBusMain`
+Event source: `orcabus.arribawgtsrna`
+
+### Stateful Resources
+
+**AWS Schemas registry**
+- `arriba-wgts-rna-complete-data-draft-schema.json` — used to validate DRAFT payloads before promotion to READY
+
+**SSM Parameters**
+
+| Parameter | Description |
+|---|---|
+| `workflowName` | `arriba-wgts-rna` |
+| `workflowVersion` | Current default version |
+| `payloadVersion` | Payload schema version |
+| `icav2ProjectId` | Default ICAv2 project ID per environment |
+| `logsPrefix` | Default S3 prefix for logs |
+| `outputPrefix` | Default S3 prefix for outputs |
+| `pipelineIdsByWorkflowVersion/<version>` | ICAv2 CWL pipeline ID for each workflow version |
+| `inputsByWorkflowVersion/<version>` | Default input overrides per workflow version |
+| `referenceByWorkflowVersion/<version>` | Default reference path |
+
+### Stateless Resources
+
+- **Lambda functions** (Python 3.14, ARM64) — one per task in the state machines; see [`app/lambdas/`](app/lambdas/)
+- **Step Functions state machines** — five ASL templates in [`app/step-functions-templates/`](app/step-functions-templates/)
+- **EventBridge rules** — route incoming `WorkflowRunStateChange` (DRAFT), `Icav2WesAnalysisStateChange`, and upstream SUCCEEDED events to the appropriate state machines
 
 ### Stacks
 
-This CDK project manages multiple stacks. The root stack (the only one that does not include `DeploymentPipeline` in its
-stack ID) is deployed in the toolchain account and sets up a CodePipeline for cross-environment deployments to `beta`,
-`gamma`, and `prod`.
-
-To list all available stacks, run:
+The CDK project deploys a CodePipeline in the toolchain account that promotes changes to `beta`, `gamma`, and `prod`.
 
 ```sh
+# List stateful stacks
 pnpm cdk-stateful ls
+# StatefulArribaWgtsRnaPipeline
+# StatefulArribaWgtsRnaPipeline/.../OrcaBusBeta/StatefulArribaWgtsRnaPipeline
+# StatefulArribaWgtsRnaPipeline/.../OrcaBusGamma/StatefulArribaWgtsRnaPipeline
+# StatefulArribaWgtsRnaPipeline/.../OrcaBusProd/StatefulArribaWgtsRnaPipeline
+
+# List stateless stacks
 pnpm cdk-stateless ls
+# StatelessArribaWgtsRnaPipelineManager
+# StatelessArribaWgtsRnaPipelineManager/.../OrcaBusBeta/StatelessArribaWgtsRnaPipelineManager
+# StatelessArribaWgtsRnaPipelineManager/.../OrcaBusGamma/StatelessArribaWgtsRnaPipelineManager
+# StatelessArribaWgtsRnaPipelineManager/.../OrcaBusProd/StatelessArribaWgtsRnaPipelineManager
 ```
 
-Output
+---
 
-```sh
-# Stateful
-StatefulArribaWgtsRnaPipeline
-StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusBeta/StatefulArribaWgtsRnaPipeline (OrcaBusBeta-StatefulArribaWgtsRnaPipeline)
-StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusGamma/StatefulArribaWgtsRnaPipeline (OrcaBusGamma-StatefulArribaWgtsRnaPipeline)
-StatefulArribaWgtsRnaPipeline/StatefulArribaWgtsRnaPipeline/OrcaBusProd/StatefulArribaWgtsRnaPipeline (OrcaBusProd-StatefulArribaWgtsRnaPipeline)
-# Stateless
-StatelessArribaWgtsRnaPipelineManager
-StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusBeta/StatelessArribaWgtsRnaPipelineManager (OrcaBusBeta-StatelessArribaWgtsRnaPipelineManager)
-StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusGamma/StatelessArribaWgtsRnaPipelineManager (OrcaBusGamma-StatelessArribaWgtsRnaPipelineManager)
-StatelessArribaWgtsRnaPipelineManager/StatelessArribaWgtsRnaPipeline/OrcaBusProd/StatelessArribaWgtsRnaPipelineManager (OrcaBusProd-StatelessArribaWgtsRnaPipelineManager)
-```
+## CI/CD and Release Management
 
-## Development
+All changes merged to `main` are automatically built and deployed to `beta` and `gamma`. Promotion to `prod` requires manually enabling the CodePipeline transition in the AWS console.
 
-### Project Structure
+---
 
-The root of the project is an AWS CDK project where the main application logic lives inside the `./app` folder.
+## Related Services
 
-The project is organized into the following key directories:
+| Role            | Service                                                                                            |
+|-----------------|----------------------------------------------------------------------------------------------------|
+| Upstream        | [Dragen WGTS RNA](https://github.com/OrcaBus/service-dragen-wgts-rna-pipeline-manager)            |
+| Downstream      | [RNAsum](https://github.com/OrcaBus/service-rnasum-pipeline-manager)                              |
+| ICAv2 execution | [ICAv2 WES Manager](https://github.com/OrcaBus/service-icav2-wes-manager)                         |
+| Workflow state  | [Workflow Manager](https://github.com/OrcaBus/service-workflow-manager)                            |
 
-- **`./app`**:
-  - Contains the main application logic (lambdas / step functions / event schemas).
+---
 
-- **`./bin/deploy.ts`**:
-  - Serves as the entry point of the application.
-  - It initializes two root stacks: `stateless` and `stateful`.
+## SOPs
 
-- **`./infrastructure`**: Contains the infrastructure code for the project:
-    - **`./infrastructure/toolchain`**: Includes stacks for the stateless and stateful resources deployed in the toolchain account.
-      - These stacks primarily set up the CodePipeline for cross-environment deployments.
-    - **`./infrastructure/stage`**: Defines the stage stacks for different environments:
-        - **`./infrastructure/stage/interfaces`**: The TypeScript interfaces used across constants, and stack configurations.
-        - **`./infrastructure/stage/constants.ts`**: Constants used across different stacks and stages.
-        - **`./infrastructure/stage/config.ts`**: Contains environment-specific configuration files (e.g., `beta`,
-          `gamma`, `prod`).
-        - **`./infrastructure/stage/stateful-application-stack.ts`**: The CDK stack entry point for provisioning resources required by the
-          application in `./app`.
-        - **`./infrastructure/stage/stateless-application-stack.ts`**: The CDK stack entry point for provisioning stateless resources required by the
-          application in `./app`.
-        - **`./infrastructure/stage/<aws-service-constructs>/`**: Contains AWS service-specific constructs used in the stacks.
-          - Each AWS service construct is called from either the `stateful-application-stack.ts` or `stateless-application-stack.ts`.
-          - Each AWS service folder contains an `index.ts` and `interfaces.ts` file.
+| SOP | Description |
+|---|---|
+| [PM.AWR.1](docs/operation/SOP/PM.AWR.1/PM.AWR.1-ManualPipelineExecution.md) | Manually kick off a reanalysis |
+| [PM.AWR.2](docs/operation/SOP/PM.AWR.2/PM.AWR.2-NewPipelineDeployment.md) | Install and deploy a new pipeline version |
+| [PM.AWR.3](docs/operation/SOP/PM.AWR.3/PM.AWR.3-UpdatingPipelineParameters.md) | Update SSM parameters |
+| [PM.AWR.4](docs/operation/SOP/PM.AWR.4/PM.AWR.4-RunningWorkflowValidations.md) | Run workflow validations |
+| [PM.AWR.5](docs/operation/SOP/PM.AWR.5/PM.AWR.5-TroubleShooting.md) | Troubleshoot common issues |
 
-- **`.github/workflows/pr-tests.yml`**: Configures GitHub Actions to run tests for `make check` (linting and code
-  style), tests defined in `./test`, and `make test` for the `./app` directory. Modify this file as needed to ensure the
-  tests are properly configured for your environment.
-
-- **`./test`**: Contains tests for CDK code compliance against `cdk-nag`. You should modify these test files to match
-  the resources defined in the `./infrastructure` folder.
-
-### Setup
-
-#### Requirements
-
-```sh
-node --version
-v22.9.0
-
-# Update Corepack (if necessary, as per pnpm documentation)
-npm install --global corepack@latest
-
-# Enable Corepack to use pnpm
-corepack enable pnpm
-
-```
-
-#### Install Dependencies
-
-To install all required dependencies, run:
-
-```sh
-make install
-```
-
-### Conventions
-
-### Linting & Formatting
-
-Automated checks are enforced via pre-commit hooks, ensuring only checked code is committed. For details consult the
-`.pre-commit-config.yaml` file.
-
-Manual, on-demand checking is also available via `make` targets (see below). For details consult the `Makefile` in the
-root of the project.
-
-To run linting and formatting checks on the root project, use:
-
-```sh
-make check
-```
-
-To automatically fix issues with ESLint and Prettier, run:
-
-```sh
-make fix
-```
-
-### Testing
-
-Unit tests are available for most of the business logic. Test code is hosted alongside business in `/tests/` directories.
-
-```sh
-make test
-```
+---
 
 ## Glossary & References
 
-For general terms and expressions used across OrcaBus services, please see the
-platform [documentation](https://github.com/OrcaBus/wiki/blob/main/orcabus-platform/README.md#glossary--references).
+- Platform glossary: [OrcaBus wiki](https://github.com/OrcaBus/wiki/blob/main/orcabus-platform/README.md#glossary--references)
+- For development setup, build commands, project structure, and conventions see the [steering docs](.kiro/steering/).

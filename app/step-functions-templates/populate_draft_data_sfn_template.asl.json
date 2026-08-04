@@ -338,10 +338,92 @@
           }
         }
       ],
-      "Next": "Get libraries with readsets",
+      "Next": "Tags Or Engine Parameters Have Changed",
       "Assign": {
         "tags": "{% /* https://try.jsonata.org/05K2l3beH */\n/* List to merge together */\n[\n    /* Start with the draft tags */\n    $tags,\n    /* Merge the results list together */\n    $merge($states.result)\n] \n/* Then merge these initial tags with states.result  */\n~> $merge\n/* Remove any keys with values */\n~> $sift(function($v, $k){$v != null}) %}"
       }
+    },
+    "Tags Or Engine Parameters Have Changed": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Comment": "Tags or Engine Parameters Have Changed",
+          "Next": "Add change comment",
+          "Condition": "{% ( ( $data.tags ? $data.tags : {} ) = $tags ~> $not ) or\n( ( $data.engineParameters ? $data.engineParameters : {} ) = $engineParameters ~> $not ) %}"
+        }
+      ],
+      "Default": "Add updating inputs comment"
+    },
+    "Add change comment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${__add_populate_draft_comment_lambda_function_arn__}",
+        "Payload": {
+          "workflowRunId": "{% $detail.orcabusId %}",
+          "commentType": "{% ( $tagsChanged := ( ( $data.tags ? $data.tags : {} ) = $tags ~> $not ); $engineParametersChanged := ( ( $data.engineParameters ? $data.engineParameters : {} ) = $engineParameters ~> $not ); $tagsChanged and $engineParametersChanged ? 'both_changed' : $tagsChanged ? 'tags_changed' : 'engine_parameters_changed' ) %}",
+          "executionArn": "{% $states.context.Execution.Id %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "Put DRAFT update event",
+      "Output": "{% $states.input %}"
+    },
+    "Put DRAFT update event": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::events:putEvents",
+      "Arguments": {
+        "Entries": [
+          {
+            "Detail": "{% {\n  \"orcabusId\": $detail.orcabusId,\n  \"portalRunId\": $detail.portalRunId,\n  \"status\": \"${__draft_status__}\",\n  \"workflow\": $detail.workflow,\n  \"libraries\": [$libraryList],\n  \"payload\": {\n    \"version\": $payload.version ? $payload.version : '${__default_payload_version__}',\n    \"data\": {\n      \"inputs\": $inputs,\n      \"tags\": $tags,\n      \"engineParameters\": $engineParameters\n    }\n  },\n  \"timestamp\": $states.context.State.EnteredTime\n} ~> $sift(function($v, $k){$v != null}) %}",
+            "DetailType": "${__workflow_run_update_event_detail_type__}",
+            "EventBusName": "${__event_bus_name__}",
+            "Source": "${__stack_source__}"
+          }
+        ]
+      },
+      "End": true
+    },
+    "Add updating inputs comment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${__add_populate_draft_comment_lambda_function_arn__}",
+        "Payload": {
+          "workflowRunId": "{% $detail.orcabusId %}",
+          "commentType": "updating_inputs",
+          "executionArn": "{% $states.context.Execution.Id %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "Get libraries with readsets",
+      "Output": "{% $states.input %}"
     },
     "Get libraries with readsets": {
       "Type": "Parallel",
@@ -770,7 +852,7 @@
           "Comment": "Payload has changed"
         }
       ],
-      "Default": "Skip push event"
+      "Default": "Get Missing Schema Fields"
     },
     "Put DRAFT WRU event": {
       "Type": "Task",
@@ -787,7 +869,63 @@
       },
       "End": true
     },
-    "Skip push event": {
+    "Get Missing Schema Fields": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${__get_missing_schema_fields_lambda_function_arn__}",
+        "Payload": {
+          "data": "{% $workflowRunUpdate.payload.data %}",
+          "payloadVersion": "{% $payload.version ? $payload.version : '${__default_payload_version__}' %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Output": "{% $states.result.Payload %}",
+      "Next": "Add no change comment"
+    },
+    "Add no change comment": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${__add_populate_draft_comment_lambda_function_arn__}",
+        "Payload": {
+          "workflowRunId": "{% $detail.orcabusId %}",
+          "commentType": "no_change_missing_fields",
+          "missingFields": "{% $states.input.missingFields %}",
+          "executionArn": "{% $states.context.Execution.Id %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "Success (no change)",
+      "Output": "{% $states.input %}"
+    },
+    "Success (no change)": {
       "Type": "Pass",
       "End": true
     }
