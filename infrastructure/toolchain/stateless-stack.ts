@@ -10,14 +10,17 @@ export class StatelessStack extends cdk.Stack {
     super(scope, id, props);
 
     new DeploymentStackPipeline(this, 'StatelessArribaWgtsRnaPipeline', {
+      unitAppTestConfig: {
+        command: [],
+      },
       githubBranch: 'main',
       githubRepo: REPO_NAME,
       stack: StatelessApplicationStack,
       stackName: 'StatelessArribaWgtsRnaPipelineManager',
       stackConfig: {
-        beta: getStatelessStackProps(),
-        gamma: getStatelessStackProps(),
-        prod: getStatelessStackProps(),
+        beta: getStatelessStackProps('BETA'),
+        gamma: getStatelessStackProps('GAMMA'),
+        prod: getStatelessStackProps('PROD'),
       },
       pipelineName: 'OrcaBus-StatelessArribaWgtsRnaPipeline',
       cdkSynthCmd: ['pnpm install --frozen-lockfile --ignore-scripts', 'pnpm cdk-stateless synth'],

@@ -1,4 +1,5 @@
 import { SsmParameterPaths, SsmParameterValues } from './ssm/interfaces';
+import { StageName } from '@orcabus/platform-cdk-constructs/shared-config/accounts';
 
 export type WorkflowVersionType = '2.5.0';
 
@@ -32,4 +33,7 @@ export interface StatelessApplicationStackConfig {
 
   // Parameter paths
   ssmParameterPaths: SsmParameterPaths;
+
+  // Stage Name
+  stageName: StageName;
 }
