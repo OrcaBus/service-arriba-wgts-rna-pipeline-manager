@@ -115,12 +115,15 @@ export const getStatefulStackProps = (stage: StageName): StatefulApplicationStac
   };
 };
 
-export const getStatelessStackProps = (): StatelessApplicationStackConfig => {
+export const getStatelessStackProps = (stage: StageName): StatelessApplicationStackConfig => {
   return {
     // Event Bus Object
     eventBusName: EVENT_BUS_NAME,
 
     // SSM Parameter paths
     ssmParameterPaths: getSsmParameterPaths(),
+
+    // Stage Name
+    stageName: stage,
   };
 };
