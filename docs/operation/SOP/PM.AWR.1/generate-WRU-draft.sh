@@ -5,12 +5,17 @@ set -euo pipefail
 
 # Globals
 LAMBDA_FUNCTION_NAME="WruDraftValidator"
+HOSTNAME=""
+LAMBDA_TMP_DIR=""
 
 # CLI Defaults
 FORCE=false  # Use --force to set to true
 OUTPUT_URI_PREFIX=""
 LOGS_URI_PREFIX=""
 PROJECT_ID=""
+COMMENT=""  # Use -c or --comment to set a comment to be added to the payload
+SAVE_DRAFT_PAYLOAD=""
+INPUT_DATA_FILE=""
 
 # Workflow constants
 WORKFLOW_NAME="arriba-wgts-rna"
@@ -19,7 +24,13 @@ EXECUTION_ENGINE="ICA"
 CODE_VERSION="9938ff8"
 PAYLOAD_VERSION="2025.08.05"
 
-# Library ID array
+# SOP constants
+SOP_VERSION="2026.08.30"
+SOP_ID="PM.AWR.1"
+GITHUB_REPO="OrcaBus/service-arriba-wgts-rna-pipeline-manager"
+THIS_SCRIPT_PATH="docs/operation/SOP/${SOP_ID}/generate-WRU-draft.sh"
+
+# Library id array
 LIBRARY_ID_ARRAY=()
 
 # Functions
