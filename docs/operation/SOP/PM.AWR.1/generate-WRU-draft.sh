@@ -39,67 +39,252 @@ echo_stderr(){
 }
 
 print_usage(){
+  local hostname
+  if ! hostname="$(get_hostname_from_ssm)"; then
+    echo_stderr "ERROR: Couldn't get hostname var from AWS, ensure you're logged into AWS"
+  fi
+  if [[ -z "${hostname}" ]]; then
+    hostname="<aws_account_prefix>.umccr.org"
+  fi
+
   echo "
 generate-WRU-draft.sh [-h | --help]
 generate-WRU-draft.sh (library_id)...
+                      (-c | --comment <comment>)
                       [-f | --force]
                       [-o | --output-uri-prefix <s3_uri>]
                       [-l | --logs-uri-prefix <s3_uri>]
                       [-p | --project-id <project_id>]
+                      [--input-data <input_data_path>]
+                      [--save-draft-payload <output_file>]
                       [--workflow-version <workflow_version>]
                       [--code-version <code_version>]
 
 Description:
 Run this script to generate a draft WorkflowRunUpdate event for the specified library IDs.
 
+Research Projects Note:
+If you intend to run this workflow outside of the main ICA projects (development, staging, production),
+ensure you have --output-uri-prefix, --logs-uri-prefix, and --project-id set appropriately.
+
+You will also need to ensure that the ICA pipeline ID attributed to the workflow-name/version/codeVersion is
+available in the ICA project id specified.
+
+The output uri prefix and logs uri prefix must be set to a location inside the s3 prefix that the ICA project is mounted on.
+
+Input data note:
+The populate draft data service will try to auto-populate inputs based on the information it already has.
+This may have unintended consequences if there exists two upstream analyses and you want inputs from one specific analysis.
+In this circumstance it is recommended to use the '--input-data <json_file>' to generate an existing data object to populate, for example:
+{
+  \"inputs\": {
+    \"dragenTranscriptomeUri\": \"s3://path/to/specific/dragen-transcriptome/\"
+  }
+}
+
 Positional arguments:
   library_id:   One or more library IDs to link to the WorkflowRunUpdate event.
 
 Keyword arguments:
-  -h | --help:               Print this help message and exit.
-  -f | --force:              Don't confirm before pushing the event to EventBridge.
-  -l | --logs-uri-prefix:    (Optional) S3 URI for logs (must end with a slash).
-  -o | --output-uri-prefix:  (Optional) S3 URI for outputs (must end with a slash).
-  -p | --project-id:         (Optional) ICAv2 Project ID to associate with the workflow run
-  --workflow-version:        (Optional) The workflow version to use, defaults to ${WORKFLOW_VERSION},
-                             but can also be set to 4.4.6, this is particularly useful for SV calling.
-  --code-version:            (Optional) Set the code version to pull a particular workflow object.
-                             Required if using a workflow version other than the default.
+  -h | --help                                   Print this help message and exit.
+  -c | --comment                                (Required) A comment to add to the payload, which will be visible in the workflow run details in OrcaUI.
+  -f | --force                                  (Optional) Don't confirm before pushing the event to EventBridge.
+  -o | --output-uri-prefix=<output_uri_prefix>  (Optional) S3 URI prefix, Outputs written to <output_uri_prefix><portal_run_id> (prefix value must end with a slash).
+  -l | --logs-uri-prefix=<logs_uri_prefix>      (Optional) S3 URI prefix, Logs written to <logs_uri_prefix><portal_run_id> (prefix value must end with a slash).
+  -p | --project-id=<project_id>                (Optional) ICAv2 Project ID to associate with the workflow run
+  --save-draft-payload=<output_file>            (Optional) Save the generated draft event to local file <output_file> after pushing to event bridge for record purposes.
+  --workflow-version=<workflow_version>         (Optional) Override the default workflow version (defaults to ${WORKFLOW_VERSION}).
+  --code-version=<code_version>                 (Optional) Override the default code version. Required if using a workflow version other than the default.
+  --input-data=<input_data_file>               (Optional) Add existing input data to the data section of the payload.
+                                                           This might be used to explicitly set input files.
+                                                           See input data note for more information.
 
 Environment:
+  PORTAL_TOKEN: (Required) Your personal portal token from https://portal.${hostname}/
   AWS_PROFILE:  (Optional) The AWS CLI profile to use for authentication.
   AWS_REGION:   (Optional) The AWS region to use for AWS CLI commands.
 
+Binaries:
+  - aws CLI should be installed and configured with appropriate credentials and region.
+    - install from https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+  - jq should be installed for JSON parsing
+    - from https://github.com/jqlang/jq
+  - semver for comparing versions
+    - from https://github.com/fsaintjacques/semver-tool
+  - curl should be installed for making API requests.
+    - from https://curl.se/download.html
+  - openssl should be available for generating random portal run ids.
+    - this should be installed by default on most systems, but if not it can be installed from https://www.openssl.org/source/
+  - awk should be available for parsing command output.
+    - this should be installed by default on most systems. If not, it can be installed from https://www.gnu.org/software/gawk/
+
 Example usage:
-bash generate-WRU-draft.sh tumor_library_id normal_library_id
-bash generate-WRU-draft.sh tumor_library_id normal_library_id \\
+bash generate-WRU-draft.sh library_id \\
+  --comment 'Redriving analysis after failure'
+
+bash generate-WRU-draft.sh library_id \\
+  --comment 'Redriving analysis after failure' \\
   --output-uri-prefix s3://project-bucket/analysis/arriba-wgts-rna/ \\
   --logs-uri-prefix s3://project-bucket/logs/arriba-wgts-rna \\
   --project-id project-uuid-1234-abcd
 "
 }
 
-get_hostname_from_ssm(){
-  aws ssm get-parameter \
-    --name "/hosted_zone/umccr/name" \
-    --output json | \
-  jq --raw-output \
-    '.Parameter.Value'
+compare_script_version_to_repo(){
+  : '
+  Compare the version of this script to the version in the repo, and print a warning if they are different
+  If anywhere along the way fails, return unknown
+  '
+  repo_script_version="$( \
+    (
+      # Read the document from the main branch
+      curl --silent --fail --location --show-error \
+        --header "Accept: text/html" \
+        --url "https://raw.githubusercontent.com/${GITHUB_REPO}/refs/heads/main/${THIS_SCRIPT_PATH}" | \
+      ( \
+        # Read through the whole document to prevent curl erroring out
+        tac | tac \
+      ) | \
+      (
+        # Get the first occurrence with grep -m1 (SOP_VERSION="YYYY.MM.DD")
+        # Remove the SOP_VERSION= prefix ("YYYY.MM.DD")
+        # Remove quotes (YYYY.MM.DD)
+        grep -m1 "SOP_VERSION" | \
+        sed 's/^SOP_VERSION=//' | \
+        jq --raw-output
+      ) \
+    ) || echo "unknown"
+  )"
+
+  if [[ "${SOP_VERSION}" != "${repo_script_version}" ]]; then
+    echo_stderr "Warning: This script version (${SOP_VERSION}) is different from the version in the repo (${repo_script_version})."
+    echo_stderr "         Consider refetching this script from https://github.com/${GITHUB_REPO}/blob/main/${THIS_SCRIPT_PATH}"
+  fi
 }
 
-get_orcabus_token(){
-  aws secretsmanager get-secret-value \
-    --secret-id orcabus/token-service-jwt \
-    --output json \
-    --query SecretString | \
+check_binaries(){
+  : '
+  Check that required binaries are installed
+  '
+  for binary in aws semver jq curl openssl awk; do
+    if ! command -v "${binary}" > /dev/null 2>&1; then
+      echo_stderr "Error: ${binary} is not installed. Please install ${binary} and try again. Exiting."
+      return 1
+    fi
+  done
+
+  # Check that jq is version 1.7 or higher, as we use the fromjson function which was added in 1.7
+  jq_version="$(jq --version | cut -d'-' -f2)"
+  if [[ "${jq_version}" =~ ^1.\d$ && ! "${jq_version}" == "1.7" ]]; then
+    echo_stderr "Error: jq version 1.7 or higher is required. Please update jq and try again. Exiting."
+    return 1
+  fi
+  # After version 1.7, jq changed their versioning to semver, so we can use semver to compare versions
+  if [[ ! "$(semver compare "${jq_version}" "${MIN_REQUIREMENTS["jq"]}")" -ge 0 ]]; then
+    echo_stderr "Error: jq version ${MIN_REQUIREMENTS["jq"]} or higher is required. Please update jq and try again. Exiting."
+    return 1
+  fi
+
+  # Check aws cli version is 2.0.0 or higher, as we use the --cli-binary-format option which was added in 2.0.0
+  aws_version="$(aws --version 2>&1 | awk '{print $1}' | cut -d'/' -f2)"
+  if [[ ! "$(semver compare "${aws_version}" "${MIN_REQUIREMENTS["aws"]}")" -ge 0 ]]; then
+    echo_stderr "Error: AWS CLI version ${MIN_REQUIREMENTS["aws"]} or higher is required. Please update AWS CLI and try again. Exiting."
+    return 1
+  fi
+
+  # Check curl version is 7.76.0 or higher, as we use the --fail-with-body option which was added in 7.76.0
+  curl_version="$(curl --version | head -n1 | awk '{print $2}')"
+  if [[ ! "$(semver compare "${curl_version}" "${MIN_REQUIREMENTS["curl"]}")" -ge 0 ]]; then
+    echo_stderr "Error: curl version ${MIN_REQUIREMENTS["curl"]} or higher is required. Please update curl and try again. Exiting."
+    return 1
+  fi
+}
+
+get_email_from_portal_token(){
+  : '
+  Get the email to use from the portal JWT
+  We use this to make a comment on the workflow run in the OrcaUI
+  once the event is pushed to EventBridge and the workflow run is created,
+  to indicate who created the workflow run
+  '
   jq --raw-output \
-    'fromjson | .id_token'
+    --null-input \
+    --arg portalToken "${PORTAL_TOKEN}" \
+    '
+      (
+        # Get the middle chunk of the portal jwt token
+        $portalToken | split(".")[1] |
+        # Decode base64
+        @base64d |
+        # Load json
+        fromjson
+      ) |
+      .email
+    '
+}
+
+get_hostname_from_ssm(){
+  : '
+    Cache the hostname in a global variable to
+    avoid multiple calls to SSM Parameter Store
+  '
+  local hostname
+  local hostname_ssm_parameter_path
+  hostname_ssm_parameter_path="/hosted_zone/umccr/name"
+  if [[ -n "${HOSTNAME}" ]]; then
+    echo "${HOSTNAME}"
+    return
+  fi
+
+  if ! hostname="$( \
+    aws ssm get-parameter \
+      --name "${hostname_ssm_parameter_path}" \
+      --output json | \
+    jq --raw-output \
+      '.Parameter.Value' \
+  )"; then
+    echo_stderr "Error! Cannot get ssm parameter path ${hostname_ssm_parameter_path}"
+    echo_stderr "       Ensure you're in the correct AWS account and logged in"
+    return 1
+  fi
+  echo "${hostname}"
+}
+
+get_aws_account_prefix(){
+  local aws_account_id
+  aws_account_id="$( \
+    aws sts get-caller-identity --output json --query "Account" | \
+    jq --raw-output \
+  )"
+  echo "${PREFIX_BY_AWS_ACCOUNT_ID[${aws_account_id}]:-"unknown_aws_account_prefix"}"
+}
+
+get_cognito_user_pool_id_prefix(){
+  local cognito_user_pool_id
+  cognito_user_pool_id="$( \
+    jq --raw-output \
+      --null-input \
+      --arg portalToken "${PORTAL_TOKEN}" \
+      '
+        (
+          # Get the middle chunk of the portal jwt token
+          $portalToken | split(".")[1] |
+          # Decode base64
+          @base64d |
+          # Load json
+          fromjson
+        ) |
+        .iss |
+        split("/")[-1]
+      ' \
+  )"
+  echo "${COGNITO_USER_POOL_ID_BY_PREFIX[${cognito_user_pool_id}]:-"unknown_cognito_user_pool_id"}"
 }
 
 get_library_obj_from_library_id(){
   local library_id="$1"
   curl --silent --fail --show-error --location \
-    --header "Authorization: Bearer $(get_orcabus_token)" \
+    --header "Authorization: Bearer ${PORTAL_TOKEN}" \
     --url "https://metadata.$(get_hostname_from_ssm)/api/v1/library?libraryId=${library_id}" | \
   jq --raw-output \
     '
@@ -142,7 +327,7 @@ get_workflow(){
   curl --silent --fail --show-error --location \
     --request GET \
     --get \
-    --header "Authorization: Bearer $(get_orcabus_token)" \
+    --header "Authorization: Bearer ${PORTAL_TOKEN}" \
     --url "https://workflow.$(get_hostname_from_ssm)/api/v1/workflow" \
     --data "$( \
       jq \
@@ -177,77 +362,131 @@ get_workflow_run(){
   curl --silent --fail --show-error --location \
     --request GET \
     --get \
-    --header "Authorization: Bearer $(get_orcabus_token)" \
+    --header "Authorization: Bearer ${PORTAL_TOKEN}" \
     --url "https://workflow.$(get_hostname_from_ssm)/api/v1/workflowrun?portalRunId=${portal_run_id}" | \
   jq --compact-output --raw-output \
     '
       if (.results | length) > 0 then
-		.results[0]
-	  else
-		empty
-	  end
+        .results[0]
+      else
+        empty
+      end
     '
+}
+
+generate_workflow_comment(){
+  : '
+  Generate a comment on the workflow run
+  '
+  local workflow_run_orcabus_id="$1"
+  local email_address="$2"
+  curl --silent --fail-with-body --location --show-error \
+    --request "POST" \
+    --header "Accept: application/json" \
+    --header "Authorization: Bearer ${PORTAL_TOKEN}" \
+    --header "Content-Type: application/json" \
+    --data "$(
+      jq --null-input --raw-output \
+        --arg emailAddress "${email_address}" \
+        --arg sopId "${SOP_ID}" \
+        --arg sopVersion "${SOP_VERSION}" \
+        --arg comment "${COMMENT}" \
+        '
+          {
+            "text": "Pipeline executed manually via SOP \($sopId)/\($sopVersion) -- \($comment)",
+            "createdBy": $emailAddress
+          }
+        '
+    )" \
+    --url "https://workflow.$(get_hostname_from_ssm)/api/v1/workflowrun/${workflow_run_orcabus_id}/comment/"
 }
 
 # Get args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  	# Help
+    # Help
     -h|--help)
       print_usage
       exit 0
       ;;
-  	# Force boolean
+    # Comment
+    -c|--comment)
+      COMMENT="$2"
+      shift 2
+      ;;
+    -c=*|--comment=*)
+      COMMENT="${1#*=}"
+      shift
+      ;;
+    # Force boolean
     -f|--force)
       FORCE=true
       shift
       ;;
     # Output URI prefix
     -o|--output-uri-prefix)
-	  OUTPUT_URI_PREFIX="$2"
-	  shift 2
-	  ;;
-	-o=*|--output-uri-prefix=*)
-	  OUTPUT_URI_PREFIX="${1#*=}"
-	  shift
-	  ;;
-	# Log URI prefix
-	-l|--logs-uri-prefix)
-	  LOGS_URI_PREFIX="$2"
-	  shift 2
-	  ;;
-	-l=*|--logs-uri-prefix=*)
-	  LOGS_URI_PREFIX="${1#*=}"
-	  shift
-	  ;;
-	# Project ID
-	-p|--project-id)
-	  PROJECT_ID="$2"
-	  shift 2
-	  ;;
-	-p=*|--project-id=*)
-	  PROJECT_ID="${1#*=}"
-	  shift
-	  ;;
-	# Workflow version
-	--workflow-version)
-	  WORKFLOW_VERSION="$2"
-	  shift 2
-	  ;;
-	--workflow-version=*)
-	  WORKFLOW_VERSION="${1#*=}"
-	  shift
-	  ;;
-	# Code version
-	--code-version)
-	  CODE_VERSION="$2"
-	  shift 2
-	  ;;
-	--code-version=*)
-	  CODE_VERSION="${1#*=}"
-	  shift
-	  ;;
-	# Positional arguments (library IDs)
+      OUTPUT_URI_PREFIX="$2"
+      shift 2
+      ;;
+    -o=*|--output-uri-prefix=*)
+      OUTPUT_URI_PREFIX="${1#*=}"
+      shift
+      ;;
+    # Log URI prefix
+    -l|--logs-uri-prefix)
+      LOGS_URI_PREFIX="$2"
+      shift 2
+      ;;
+    -l=*|--logs-uri-prefix=*)
+      LOGS_URI_PREFIX="${1#*=}"
+      shift
+      ;;
+    # Project ID
+    -p|--project-id)
+      PROJECT_ID="$2"
+      shift 2
+      ;;
+    -p=*|--project-id=*)
+      PROJECT_ID="${1#*=}"
+      shift
+      ;;
+    # Save draft payload to file
+    --save-draft-payload)
+      SAVE_DRAFT_PAYLOAD="$2"
+      shift 2
+      ;;
+    --save-draft-payload=*)
+      SAVE_DRAFT_PAYLOAD="${1#*=}"
+      shift
+      ;;
+    # Workflow version
+    --workflow-version)
+      WORKFLOW_VERSION="$2"
+      shift 2
+      ;;
+    --workflow-version=*)
+      WORKFLOW_VERSION="${1#*=}"
+      shift
+      ;;
+    # Code version
+    --code-version)
+      CODE_VERSION="$2"
+      shift 2
+      ;;
+    --code-version=*)
+      CODE_VERSION="${1#*=}"
+      shift
+      ;;
+    # Input data
+    --input-data)
+      INPUT_DATA_FILE="$2"
+      shift 2
+      ;;
+    --input-data=*)
+      INPUT_DATA_FILE="${1#*=}"
+      shift
+      ;;
+    # Positional arguments (library IDs)
     *)
       LIBRARY_ID_ARRAY+=("$1")
       shift
