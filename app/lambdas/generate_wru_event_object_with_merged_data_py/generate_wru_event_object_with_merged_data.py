@@ -74,11 +74,16 @@ def handler(event, context):
         payload['data'] = {}
 
     # Merge the upstream alignment data into the draft payload inputs, but do
-    # not overwrite alignment data that has already been resolved.
+    # not overwrite alignment data that has already been resolved. When there is
+    # no upstream alignment data (e.g. the populate-draft flow), leave the inputs
+    # untouched rather than injecting a null 'alignmentData' key.
     data_object = payload['data'].copy()
     if data_object.get("inputs", None) is None:
         data_object["inputs"] = {}
-    if data_object["inputs"].get("alignmentData", None) is None:
+    if (
+            alignment_data is not None
+            and data_object["inputs"].get("alignmentData", None) is None
+    ):
         data_object["inputs"]["alignmentData"] = alignment_data
 
     merged_payload = {
