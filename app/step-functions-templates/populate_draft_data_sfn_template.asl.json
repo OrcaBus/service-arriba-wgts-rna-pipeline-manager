@@ -379,23 +379,8 @@
           "JitterStrategy": "FULL"
         }
       ],
-      "Next": "Put DRAFT update event",
+      "Next": "Add updating inputs comment",
       "Output": "{% $states.input %}"
-    },
-    "Put DRAFT update event": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::events:putEvents",
-      "Arguments": {
-        "Entries": [
-          {
-            "Detail": "{% {\n  \"orcabusId\": $detail.orcabusId,\n  \"portalRunId\": $detail.portalRunId,\n  \"status\": \"${__draft_status__}\",\n  \"workflow\": $detail.workflow,\n  \"libraries\": [$libraryList],\n  \"payload\": {\n    \"version\": $payload.version ? $payload.version : '${__default_payload_version__}',\n    \"data\": {\n      \"inputs\": $inputs,\n      \"tags\": $tags,\n      \"engineParameters\": $engineParameters\n    }\n  },\n  \"timestamp\": $states.context.State.EnteredTime\n} ~> $sift(function($v, $k){$v != null}) %}",
-            "DetailType": "${__workflow_run_update_event_detail_type__}",
-            "EventBusName": "${__event_bus_name__}",
-            "Source": "${__stack_source__}"
-          }
-        ]
-      },
-      "End": true
     },
     "Add updating inputs comment": {
       "Type": "Task",
