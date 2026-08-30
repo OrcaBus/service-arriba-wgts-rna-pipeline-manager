@@ -1,8 +1,42 @@
 #!/usr/bin/env python3
 
 """
-Generate a WRU event object with merged data
+Generate a WorkflowRunUpdate event object with merged data.
+
+This Lambda constructs the complete WRU event detail object from the current
+draft workflow run and the upstream (dragen-wgts-rna) alignment data.
+
+Input:
+{
+    "portalRunId": "...",
+    "libraries": [...],            # optional
+    "payload": {
+        "version": "...",
+        "data": {
+            "inputs": {...},
+            "tags": {...},
+            "engineParameters": {...}
+        }
+    },
+    "upstreamData": {
+        "alignmentData": {...}     # from get_dragen_rna_outputs_from_portal_run_id
+    }
+}
+
+Output:
+{
+    "workflowRunUpdate": {
+        "orcabusId": "...",
+        "portalRunId": "...",
+        "status": "DRAFT",
+        "workflow": {...},
+        "workflowRunName": "...",
+        "libraries": [...],
+        "payload": {...}
+    }
+}
 """
+
 # Layer imports
 from orcabus_api_tools.workflow import (
     get_workflow_run_from_portal_run_id
