@@ -1,8 +1,42 @@
 #!/usr/bin/env python3
 
 """
-Generate a WRU event object with merged data
+Generate a WorkflowRunUpdate event object with merged data.
+
+This Lambda constructs the complete WRU event detail object from the current
+draft workflow run and the upstream (dragen-wgts-rna) alignment data.
+
+Input:
+{
+    "portalRunId": "...",
+    "libraries": [...],            # optional
+    "payload": {
+        "version": "...",
+        "data": {
+            "inputs": {...},
+            "tags": {...},
+            "engineParameters": {...}
+        }
+    },
+    "upstreamData": {
+        "alignmentData": {...}     # from get_dragen_rna_outputs_from_portal_run_id
+    }
+}
+
+Output:
+{
+    "workflowRunUpdate": {
+        "orcabusId": "...",
+        "portalRunId": "...",
+        "status": "DRAFT",
+        "workflow": {...},
+        "workflowRunName": "...",
+        "libraries": [...],
+        "payload": {...}
+    }
+}
 """
+
 # Layer imports
 from orcabus_api_tools.workflow import (
     get_workflow_run_from_portal_run_id
@@ -11,43 +45,25 @@ from orcabus_api_tools.workflow import (
 
 def handler(event, context):
     """
-    Generate WRU event object with merged data
+    Generate WRU event object with merged data for the arriba-wgts-rna pipeline.
     :param event:
     :param context:
     :return:
     """
 
     # Get the event inputs
-    # Get the event inputs
     portal_run_id = event.get("portalRunId", None)
     libraries = event.get("libraries", None)
     payload = event.get("payload", None)
     upstream_data = event.get("upstreamData", {})
 
-    # Get the draft workflow run data
-    alignment_data = upstream_data.get('alignmentData', None)
+    # Get the upstream alignment data to merge into the draft payload inputs
+    alignment_data = upstream_data.get("alignmentData", None)
 
-    # Create a copy of the oncoanalyser draft workflow run object to update
-    draft_workflow_run = get_workflow_run_from_portal_run_id(
+    # Get the current draft workflow run object from the API
+    workflow_run = get_workflow_run_from_portal_run_id(
         portal_run_id=portal_run_id
     )
-
-    # Make a copy
-    draft_workflow_update = draft_workflow_run.copy()
-
-    # Remove 'currentState' and replace with 'status'
-    draft_workflow_update['status'] = draft_workflow_update.pop('currentState')['status']
-
-    # Add in the libraries if provided
-    if libraries is not None:
-        draft_workflow_update["libraries"] = list(map(
-            lambda library_iter: {
-                "libraryId": library_iter['libraryId'],
-                "orcabusId": library_iter['orcabusId'],
-                "readsets": library_iter.get('readsets', [])
-            },
-            libraries
-        ))
 
     # The draft payload may be empty ({}) or None when the workflow run has no
     # payload yet (get_draft_payload returns {"payload": {}} in that case).
@@ -57,43 +73,42 @@ def handler(event, context):
     if 'data' not in payload or payload['data'] is None:
         payload['data'] = {}
 
-    # First check if the oncoanalyser draft workflow object has the fields we would update with the
+    # Merge the upstream alignment data into the draft payload inputs, but do
+    # not overwrite alignment data that has already been resolved.
+    data_object = payload['data'].copy()
+    if data_object.get("inputs", None) is None:
+        data_object["inputs"] = {}
+    if data_object["inputs"].get("alignmentData", None) is None:
+        data_object["inputs"]["alignmentData"] = alignment_data
 
-    # Generate a workflow run update object with the merged data
-    if (
-            (
-                    payload['data'].get("inputs", {}).get("alignmentData", None) is not None
-            )
-    ):
-        # Return the OG, we dont want to overwrite existing data
-        draft_workflow_update["payload"] = {
-            "version": payload.get('version'),
-            "data": payload['data']
-        }
-        return {
-            "workflowRunUpdate": draft_workflow_update
-        }
-
-    if payload['data'].get("inputs", {}) is None:
-        payload['data']['inputs'] = {}
-
-    if (
-            payload['data'].get("inputs", {}).get("alignmentData", None) is None
-    ):
-        # Get the dragen draft payload tumor and normal bam uris
-        payload['data']['inputs']['alignmentData'] = alignment_data
-
-    # Merge the data from the dragen draft payload into the oncoanalyser draft payload
-    new_data_object = payload['data'].copy()
-    if new_data_object.get("inputs", None) is None:
-        new_data_object["inputs"] = {}
-
-    # Update the inputs with the dragen draft payload data
-    draft_workflow_update["payload"] = {
+    merged_payload = {
         "version": payload.get('version'),
-        "data": new_data_object
+        "data": data_object
+    }
+
+    # Determine the libraries to attach - fall back to the workflow run object's
+    # libraries when not provided on the event.
+    if libraries is None:
+        libraries = workflow_run.get("libraries", [])
+
+    # Build the complete workflow run update object
+    workflow_run_update = {
+        "orcabusId": workflow_run["orcabusId"],
+        "portalRunId": workflow_run["portalRunId"],
+        "status": "DRAFT",
+        "workflow": workflow_run["workflow"],
+        "workflowRunName": workflow_run["workflowRunName"],
+        "libraries": list(map(
+            lambda lib: {
+                "libraryId": lib["libraryId"],
+                "orcabusId": lib["orcabusId"],
+                "readsets": lib.get("readsets", []),
+            },
+            libraries
+        )),
+        "payload": merged_payload,
     }
 
     return {
-        "workflowRunUpdate": draft_workflow_update
+        "workflowRunUpdate": workflow_run_update
     }
