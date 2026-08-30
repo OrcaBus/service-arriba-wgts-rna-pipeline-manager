@@ -4,6 +4,7 @@ minimumReleaseAgeExclude:
   - picomatch@2.3.2
   - js-yaml@3.15.0
   - '@babel/core@7.29.1'
+  - '@orcabus/platform-cdk-constructs@1.9.3'
 overrides:
   '@babel/core@<=7.29.0': ^7.29.1
   brace-expansion@<1.1.13: ^1.1.13
