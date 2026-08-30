@@ -494,6 +494,95 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Check required environment variables
+if [[ -z "${PORTAL_TOKEN:-}" ]]; then
+  echo_stderr "Error: PORTAL_TOKEN environment variable is not set. Exiting."
+  print_usage
+  exit 1
+fi
+
+# Check comment is provided
+if [[ -z "${COMMENT}" ]]; then
+  echo_stderr "Error: Comment is required. Please provide a comment using the -c or --comment flag. Exiting."
+  print_usage
+  exit 1
+fi
+
+# Check save draft file path is valid if provided
+if [[ -n "${SAVE_DRAFT_PAYLOAD}" ]]; then
+  # Check parent directory exists
+  if [[ ! -d "$(dirname "${SAVE_DRAFT_PAYLOAD}")" ]]; then
+    echo_stderr "Error: The parent directory for the file path provided for --save-draft-payload '${SAVE_DRAFT_PAYLOAD}' does not exist."
+    echo_stderr "       Please provide a valid file path with an existing parent directory. Exiting."
+    exit 1
+  fi
+  if [[ -e "${SAVE_DRAFT_PAYLOAD}" ]]; then
+    echo_stderr "Error: The file path provided for --save-draft-payload already exists. "
+    echo_stderr "       Please provide a file path that does not already exist to avoid overwriting. Exiting."
+    exit 1
+  fi
+fi
+
+# Check AWS CLI configuration
+if ! aws sts get-caller-identity --output json > /dev/null 2>&1; then
+  echo_stderr "Error: AWS CLI is not configured properly. Please configure your AWS CLI with appropriate credentials and region. Exiting."
+  exit 1
+fi
+
+# Set hostname
+HOSTNAME="$(get_hostname_from_ssm)"
+
+# Check script version
+compare_script_version_to_repo
+
+# Check that we're running bash and it's version 4 or higher before declaring associative arrays
+if [[ ! -v BASH_VERSION || "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  echo_stderr "Error! This script is not being run with bash, or bash version is less than 4.0. Exiting"
+  print_usage
+  exit 1
+fi
+
+# SCRIPT BINARY VERSION MIN REQUIREMENTS
+declare -A MIN_REQUIREMENTS=(
+  ["jq"]="1.7.0"     # For if without else options
+  ["aws"]="2.0.0"    # Because what are you doing still on V1?
+  ["curl"]="7.76.0"  # For --fail-with-body option
+)
+if ! check_binaries; then
+  echo_stderr "Error: One or more required binaries are not installed. Please install the required binaries and try again. Exiting."
+  print_usage
+  exit 1
+fi
+
+# AWS Account ID by prefix
+declare -A PREFIX_BY_AWS_ACCOUNT_ID=(
+  ["843407916570"]="dev"
+  ["455634345446"]="stg"
+  ["472057503814"]="prod"
+)
+declare -A COGNITO_USER_POOL_ID_BY_PREFIX=(
+  ["ap-southeast-2_iWOHnsurL"]="dev"
+  ["ap-southeast-2_wWDrdTyzP"]="stg"
+  ["ap-southeast-2_HFrQ3aWm8"]="prod"
+)
+
+# Confirm that the aws account id associated with the credentials
+# Matches the cognito user pool id associated with the portal token,
+# to help catch users who have multiple AWS profiles configured and are using the wrong one
+if [[ "$(get_aws_account_prefix)" != "$(get_cognito_user_pool_id_prefix)" ]]; then
+  echo_stderr "Warning: The AWS account prefix associated with your AWS credentials ($(get_aws_account_prefix)) "
+  echo_stderr "         does not match the expected prefix for the portal token you provided ($(get_cognito_user_pool_id_prefix))."
+  echo_stderr "         This may cause API calls to fail due to authentication issues."
+  echo_stderr "         Please check that you are using the correct AWS profile and that your portal token is valid."
+fi
+
+# Get email address upfront
+if ! email_address="$(get_email_from_portal_token)"; then
+  echo_stderr "Error: Failed to extract email address from portal token."
+  echo_stderr "       The comment will not be created. Please check that your PORTAL_TOKEN is valid."
+  exit 1
+fi
+
 # Generate the portal run id
 portal_run_id="$(generate_portal_run_id)"
 echo_stderr "Generated Portal Run ID: ${portal_run_id}"
