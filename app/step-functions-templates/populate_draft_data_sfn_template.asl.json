@@ -491,7 +491,7 @@
         }
       ],
       "Assign": {
-        "libraryList": "{% $states.result.(library) %}"
+        "libraryList": "{% [ $states.result.(library) ] %}"
       }
     },
     "Get inputs": {
@@ -510,7 +510,7 @@
                 "FunctionName": "${__find_latest_workflow_lambda_function_arn__}",
                 "Payload": {
                   "workflowName": "${__dragen_wgts_rna_workflow_name__}",
-                  "libraries": "{% [$libraryList] %}",
+                  "libraries": "{% $libraryList %}",
                   "analysisRunId": "{% $draftWorkflowRunObject.analysisRun ? $draftWorkflowRunObject.analysisRun.orcabusId : null %}",
                   "status": "${__succeeded_status__}"
                 }
@@ -786,7 +786,7 @@
         "FunctionName": "${__generate_wru_event_object_with_merged_data_lambda_function_arn__}",
         "Payload": {
           "portalRunId": "{% $detail.portalRunId %}",
-          "libraries": "{% [$libraryList] %}",
+          "libraries": "{% $libraryList %}",
           "payload": {
             "version": "{% $payload.version ? $payload.version : '${__default_payload_version__}' %}",
             "data": {
