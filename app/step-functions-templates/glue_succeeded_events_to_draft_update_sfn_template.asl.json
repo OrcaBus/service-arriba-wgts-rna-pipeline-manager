@@ -191,7 +191,7 @@
             "Type": "Task",
             "Resource": "arn:aws:states:::lambda:invoke",
             "Assign": {
-              "draftWorkflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}",
+              "workflowRunUpdate": "{% $states.result.Payload.workflowRunUpdate %}",
               "newDraftPayload": "{% $states.result.Payload.workflowRunUpdate.payload %}"
             },
             "Arguments": {
@@ -268,7 +268,7 @@
             "Arguments": {
               "Entries": [
                 {
-                  "Detail": "{% $merge([\n  $draftWorkflowRunUpdate,\n  {\n    \"timestamp\": $states.context.State.EnteredTime\n  }\n])\n/* Remove null inputs like id */\n~> $sift(function($v, $k){$v != null}) %}",
+                  "Detail": "{% $merge([$workflowRunUpdate, {\"timestamp\": $states.context.State.EnteredTime}]) ~> $sift(function($v, $k){$v != null}) %}",
                   "DetailType": "${__workflow_run_update_event_detail_type__}",
                   "EventBusName": "${__event_bus_name__}",
                   "Source": "${__stack_source__}"
