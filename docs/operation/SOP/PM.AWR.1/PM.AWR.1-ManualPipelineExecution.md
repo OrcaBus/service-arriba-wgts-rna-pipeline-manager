@@ -1,7 +1,9 @@
 # Manual Pipeline Execution
 
-- Version: 1.0
+- Version: 2026.08.30
 - Contact: Alexis Lucattini, [alexisl@unimelb.edu.au](mailto:alexisl@unimelb.edu.au)
+
+Table of Contents
 
 - [Introduction](#introduction)
 - [Requirements](#requirements)
