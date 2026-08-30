@@ -595,24 +595,67 @@ workflow="$( \
 )"
 echo_stderr "Using workflow: $(jq --raw-output '.orcabusId' <<< "${workflow}")"
 
+# Collecting relevant libraries
+echo_stderr "Collecting libraries from metadata manager"
+libraries="$(get_linked_libraries)"
+# libraries are a list of objects with libraryId and orcabusId fields
+# Ensure no object in the list is empty
+if [[ -z "${libraries}" || "$(jq 'length' <<< "${libraries}")" == 0 ]]; then
+  echo_stderr "Error: No valid libraries found for the provided library IDs. Exiting."
+  exit 1
+# Check length of libraries matches length of library id array, to catch cases where some library ids were invalid
+elif [[ "$(jq 'length' <<< "${libraries}")" -ne "${#LIBRARY_ID_ARRAY[@]}" ]]; then
+  echo_stderr "Error: One or more library IDs provided are invalid and did not return a library object."
+  echo_stderr "       Please check the provided library IDs. Exiting."
+  exit 1
+# Check that none of the library objects have null libraryId or orcabusId,
+# which would indicate an invalid library object was returned for a valid library id
+elif [[ "$(jq 'map(select(.libraryId == null or .orcabusId == null)) | length' <<< "${libraries}")" -gt 0 ]]; then
+  echo_stderr "Error: One or more library objects are null. Please check the provided library IDs. Exiting."
+  exit 1
+else
+  echo_stderr "Found $(jq 'length' <<< "${libraries}") linked libraries"
+fi
+
 # Get the engine parameters
+echo_stderr "Generating engine parameters"
 engine_parameters=$( \
   jq --null-input --raw-output --compact-output \
-	--arg outputUriPrefix "${OUTPUT_URI_PREFIX}" \
-	--arg logsUriPrefix "${LOGS_URI_PREFIX}" \
-	--arg projectId "${PROJECT_ID}" \
-	--arg portalRunId "${portal_run_id}" \
-	'
-	  # Get the engine parameters
-	  {
-		"outputUri": ( if $outputUriPrefix != "" then ($outputUriPrefix + $portalRunId + "/") else "" end ),
-		"logsUri": ( if $logsUriPrefix != "" then ($logsUriPrefix + $portalRunId + "/") else "" end ),
-		"projectId": $projectId
-	  } |
-	  # Remove empty values
-	  with_entries(select(.value != ""))
-	' \
+    --arg outputUriPrefix "${OUTPUT_URI_PREFIX}" \
+    --arg logsUriPrefix "${LOGS_URI_PREFIX}" \
+    --arg projectId "${PROJECT_ID}" \
+    --arg portalRunId "${portal_run_id}" \
+    '
+      # Get the engine parameters
+      {
+        "outputUri": ( if $outputUriPrefix != "" then ($outputUriPrefix + $portalRunId + "/") else "" end ),
+        "logsUri": ( if $logsUriPrefix != "" then ($logsUriPrefix + $portalRunId + "/") else "" end ),
+        "projectId": $projectId
+      } |
+      # Remove empty values
+      with_entries(select(.value != ""))
+    ' \
 )
+
+# Check for existing input data
+if [[ -n "${INPUT_DATA_FILE}" ]]; then
+  # Check if input data file exists
+  if [[ ! -f "${INPUT_DATA_FILE}" ]]; then
+    echo_stderr "${INPUT_DATA_FILE} does not exist"
+    print_usage
+    exit 1
+  fi
+  # Check input data is in json format
+  if ! jq -e 'type == "object"' < "${INPUT_DATA_FILE}" >/dev/null 2>&1; then
+    echo_stderr "${INPUT_DATA_FILE} is not in json format"
+    print_usage
+    exit 1
+  fi
+  # Load in input data
+  input_data_json_str="$(jq < "${INPUT_DATA_FILE}")"
+else
+  input_data_json_str="null"
+fi
 
 # Generate the event
 lambda_payload="$( \
@@ -620,29 +663,42 @@ lambda_payload="$( \
     --argjson workflow "${workflow}" \
     --arg payloadVersion "${PAYLOAD_VERSION}" \
     --arg portalRunId "${portal_run_id}" \
-    --argjson libraries "$(get_linked_libraries)" \
+    --argjson libraries "${libraries}" \
     --argjson engineParameters "${engine_parameters}" \
+    --argjson inputData "${input_data_json_str}" \
     '
-	  {
-		"status": "DRAFT",
-		"timestamp": (now | todateiso8601),
-		"workflow": $workflow,
-		"workflowRunName": ("umccr--manual--" + $workflow["name"] + "--" + ($workflow["version"] | gsub("\\."; "-")) + "--" + $portalRunId),
-		"portalRunId": $portalRunId,
-		"libraries": $libraries,
-	  } |
-	  if (
-	    ($engineParameters | length) > 0
-	  ) then
-	    # We have a payload to add
-	    # So we initialise with a version and a data object with engine parameters
-	    .["payload"] = {
-	      "version": $payloadVersion,
-	      "data": {
-	        "engineParameters": $engineParameters
-	      }
-	    }
-	  end
+      {
+        "status": "DRAFT",
+        "timestamp": (now | todateiso8601),
+        "workflow": $workflow,
+        "workflowRunName": ("umccr--manual--" + $workflow["name"] + "--" + ($workflow["version"] | gsub("\\."; "-")) + "--" + $portalRunId),
+        "portalRunId": $portalRunId,
+        "libraries": $libraries,
+      } |
+      if ( ($engineParameters | length) > 0 ) then
+        .["payload"] = {
+          "version": $payloadVersion,
+          "data": {
+            "engineParameters": $engineParameters
+          }
+        }
+      end |
+      # If we have input data
+      if $inputData then
+        # Initialise payload if not set
+        if (.["payload"] | not) then
+          .["payload"] = {}
+        end |
+        # Set payload version
+        .["payload"]["version"] = $payloadVersion |
+        # If payload data already exists we need to merge
+        if .["payload"]["data"] then
+          .["payload"]["data"] = ($inputData * .["payload"]["data"])
+        # Otherwise just use the input json data
+        else
+          .["payload"]["data"] = $inputData
+        end
+      end
     ' \
 )"
 
@@ -658,9 +714,20 @@ if [[ "${FORCE}" == "false" ]]; then
     fi
 fi
 
+# Saving the draft event to a local file if the --save-draft-payload flag is provided, for record purposes
+if [[ -n "${SAVE_DRAFT_PAYLOAD}" ]]; then
+  echo_stderr "Saving the generated draft event to ${SAVE_DRAFT_PAYLOAD}"
+  jq --raw-output <<< "${lambda_payload}" > "${SAVE_DRAFT_PAYLOAD}"
+fi
+
+# Set the trap
+trap 'rm -rf "${LAMBDA_TMP_DIR:-}"' EXIT
+
 # Push the event to EventBridge
-mkfifo lambda_data_pipe
-errors_json="$(mktemp "errors.XXXXXX.json")"
+LAMBDA_TMP_DIR="$(mktemp -d "LAMBDA_TMP_DIR_XXXXXX")"
+LAMBDA_DATA_PIPE="${LAMBDA_TMP_DIR}/lambda_data_pipe"
+mkfifo "${LAMBDA_DATA_PIPE}"
+errors_json="$(mktemp -p "${LAMBDA_TMP_DIR}" "errors.XXXXXX.json")"
 echo_stderr "Pushing the draft event for portalRunId ${portal_run_id} via WRU Validation Lambda Function"
 aws lambda invoke \
   --function-name "$(get_lambda_function_name)" \
@@ -668,47 +735,75 @@ aws lambda invoke \
   --cli-binary-format raw-in-base64-out \
   --no-cli-pager \
   --invocation-type 'RequestResponse' \
-  lambda_data_pipe 1>/dev/null & \
+  "${LAMBDA_DATA_PIPE}" 1>/dev/null & \
 jq --raw-output \
   '
-    if .statusCode != 200 then
-	  .body | fromjson
-	else
-	  empty
-	end
+  if .statusCode != 200 then
+    .body | fromjson
+  else
+    empty
+  end
   ' \
-  < lambda_data_pipe \
+  < "${LAMBDA_DATA_PIPE}" \
   > "${errors_json}" & \
 wait
-rm lambda_data_pipe
 
+# Check for errors from the Lambda invocation
 if [[ -s "${errors_json}" ]]; then
   echo_stderr "Error pushing event to Lambda Function:"
   jq --raw-output '.' < "${errors_json}" 1>&2
-  rm "${errors_json}"
+  rm -rf "${LAMBDA_TMP_DIR}"
   exit 1
 else
-  rm "${errors_json}"
+  rm -rf "${LAMBDA_TMP_DIR}"
 fi
 
+# Remove trap
+trap - EXIT
+
+# Now wait for the workflow run to be registered by the workflow manager,
+# which should be done within a minute or two after pushing the event to EventBridge,
+# and get the workflow run object, which contains the Orcabus ID that we will use to link the
+# workflow run to the comment we will create in the next step
 echo_stderr "Waiting for the workflow run to be registered by the workflow manager"
 
+max_attempts=6  # 1 minute with 10-second intervals
+attempts=0
 while :; do
+  # Check if we've exceeded max attempts
+  if [[ "${attempts}" -ge "${max_attempts}" ]]; then
+    echo_stderr "Exceeded maximum attempts (${max_attempts}) to check for workflow run registration"
+    exit 1
+  fi
+
   workflow_run_object="$( \
-  	get_workflow_run "${portal_run_id}"
+    get_workflow_run "${portal_run_id}"
   )"
 
   # Check with the workflow manager for the workflow run object
   if [[ -n "${workflow_run_object}" ]]; then
     workflow_run_orcabus_id="$(jq --raw-output '.orcabusId' <<< "${workflow_run_object}")"
-	echo_stderr "Workflow run registered with ID: ${workflow_run_orcabus_id}"
-	break
+    echo_stderr "Workflow run registered with ID: ${workflow_run_orcabus_id}"
+    break
   else
-	echo_stderr "Workflow run not yet registered, waiting 10 seconds..."
-	sleep 10
+    echo_stderr "Workflow run not yet registered, waiting 10 seconds..."
+    sleep 10
+    attempts="$((attempts + 1))"
   fi
-
 done
 
+echo_stderr "Generating workflow comment"
+if ! comment_response="$(generate_workflow_comment "${workflow_run_orcabus_id}" "${email_address}")"; then
+  echo_stderr "Warning: Failed to generate comment on workflow run."
+  echo_stderr "         Please check that your PORTAL_TOKEN is valid and has permission to comment on the workflow run. "
+  echo_stderr "         And contact the script author if the issue persists. The workflow run has been created successfully "
+  echo_stderr "         but the comment indicating who created the workflow run and why will be missing."
+  if parsed_error="$(jq -rc 2>/dev/null <<< "${comment_response}")"; then
+    echo_stderr "         Error details: ${parsed_error}"
+  else
+    echo_stderr "         Error details (unparsed): ${comment_response}"
+  fi
+fi
+
 echo_stderr "Workflow Run Creation Event complete!"
-echo_stderr "Please head to 'https://orcaui.$(get_hostname_from_ssm)/runs/workflow/${workflow_run_orcabus_id}' to track the status of the workflow run"
+echo_stderr "Please head to 'https://orcaui.$(get_hostname_from_ssm)/workflows/workflowRuns/${workflow_run_orcabus_id}' to track the status of the workflow run"
