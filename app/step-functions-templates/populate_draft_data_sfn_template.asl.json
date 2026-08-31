@@ -382,7 +382,7 @@
           "JitterStrategy": "FULL"
         }
       ],
-      "Next": "Add updating inputs comment",
+      "Next": "Make new WRU event",
       "Output": "{% $states.input %}"
     },
     "Add updating inputs comment": {
