@@ -5,5 +5,3 @@ minimumReleaseAgeExclude:
   - js-yaml@3.15.0
   - '@babel/core@7.29.1'
   - '@orcabus/platform-cdk-constructs@1.9.3'
-overrides:
-  browserslist@<=4.28.6: ^4.28.7

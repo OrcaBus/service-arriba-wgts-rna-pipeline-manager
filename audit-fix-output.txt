@@ -1,7 +1,12 @@
-1 overrides were added to pnpm-workspace.yaml to fix vulnerabilities.
-Run "pnpm install" to apply the fixes.
+[WARN] POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk error (23). Will retry in 1 minute. 1 retries left.
+[23] The operation was aborted due to timeout
 
-The added overrides:
-{
-  "browserslist@<=4.28.6": "^4.28.7"
-}
+TimeoutError: The operation was aborted due to timeout
+    at new DOMException (node:internal/per_context/domexception:76:18)
+    at Timeout._onTimeout (node:internal/abort_controller:210:9)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+    at file:///home/runner/.cache/node/corepack/v1/pnpm/11.24.0/dist/pnpm.mjs:87342:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async RetryOperation._fn (file:///home/runner/.cache/node/corepack/v1/pnpm/11.24.0/dist/pnpm.mjs:87865:23)

@@ -1,60 +1,12 @@
-┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Browserslist: Unbounded memory growth (no cache        │
-│                     │ eviction) via distinct query results, leading to       │
-│                     │ eventual OOM                                           │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Package             │ browserslist                                           │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Vulnerable versions │ <=4.28.6                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Patched versions    │ >=4.28.7                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>@babel/core>@babel/helper-compilation-       │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>babel-plugin-istanbul>istanbul-lib-          │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>istanbul-lib-        │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ ... Found 100 paths, run `pnpm why browserslist` for   │
-│                     │ more information                                       │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-c83g-rgw3-j3cx      │
-└─────────────────────┴────────────────────────────────────────────────────────┘
-┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Browserslist: Uncaught crash / prototype write via     │
-│                     │ untrusted browserslist-stats.json custom stats         │
-│                     │ (normalizeStats)                                       │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Package             │ browserslist                                           │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Vulnerable versions │ <=4.28.6                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Patched versions    │ >=4.28.7                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>@babel/core>@babel/helper-compilation-       │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>babel-plugin-istanbul>istanbul-lib-          │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>istanbul-lib-        │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ ... Found 100 paths, run `pnpm why browserslist` for   │
-│                     │ more information                                       │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-73wf-gq98-2v4g      │
-└─────────────────────┴────────────────────────────────────────────────────────┘
-2 vulnerabilities found
-Severity: 2 high
+[WARN] POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk error (23). Will retry in 10 seconds. 2 retries left.
+[WARN] POST https://registry.npmjs.org/-/npm/v1/security/advisories/bulk error (503). Will retry in 1 minute. 1 retries left.
+[23] The operation was aborted due to timeout
+
+TimeoutError: The operation was aborted due to timeout
+    at new DOMException (node:internal/per_context/domexception:76:18)
+    at Timeout._onTimeout (node:internal/abort_controller:210:9)
+    at listOnTimeout (node:internal/timers:685:17)
+    at process.processTimers (node:internal/timers:618:7)
+    at file:///home/runner/.cache/node/corepack/v1/pnpm/11.24.0/dist/pnpm.mjs:87342:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async RetryOperation._fn (file:///home/runner/.cache/node/corepack/v1/pnpm/11.24.0/dist/pnpm.mjs:87865:23)
