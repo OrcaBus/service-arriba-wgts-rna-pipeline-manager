@@ -1,60 +1,28 @@
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Browserslist: Unbounded memory growth (no cache        │
-│                     │ eviction) via distinct query results, leading to       │
-│                     │ eventual OOM                                           │
+│ high                │ js-yaml: maxTotalMergeKeys does not limit CPU use for  │
+│                     │ empty merge sources                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Package             │ browserslist                                           │
+│ Package             │ js-yaml                                                │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Vulnerable versions │ <=4.28.6                                               │
+│ Vulnerable versions │ >=3.0.0 <3.15.2                                        │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Patched versions    │ >=4.28.7                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>@babel/core>@babel/helper-compilation-       │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>babel-plugin-istanbul>istanbul-lib-          │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>istanbul-lib-        │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
-│                     │                                                        │
-│                     │ ... Found 100 paths, run `pnpm why browserslist` for   │
-│                     │ more information                                       │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-c83g-rgw3-j3cx      │
-└─────────────────────┴────────────────────────────────────────────────────────┘
-┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Browserslist: Uncaught crash / prototype write via     │
-│                     │ untrusted browserslist-stats.json custom stats         │
-│                     │ (normalizeStats)                                       │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Package             │ browserslist                                           │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Vulnerable versions │ <=4.28.6                                               │
-├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Patched versions    │ >=4.28.7                                               │
+│ Patched versions    │ >=3.15.2                                               │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>@babel/core>@babel/helper-compilation-       │
-│                     │ targets>browserslist                                   │
+│                     │ transform>babel-plugin-istanbul>@istanbuljs/load-nyc-  │
+│                     │ config>js-yaml                                         │
 │                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>babel-plugin-istanbul>istanbul-lib-          │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
+│                     │ .>jest>@jest/core>@jest/transform>babel-plugin-        │
+│                     │ istanbul>@istanbuljs/load-nyc-config>js-yaml           │
 │                     │                                                        │
-│                     │ .>jest>@jest/core>@jest/reporters>istanbul-lib-        │
-│                     │ instrument>@babel/core>@babel/helper-compilation-      │
-│                     │ targets>browserslist                                   │
+│                     │ .>jest>@jest/core>jest-config>babel-jest>@jest/        │
+│                     │ transform>babel-plugin-istanbul>@istanbuljs/load-nyc-  │
+│                     │ config>js-yaml                                         │
 │                     │                                                        │
-│                     │ ... Found 100 paths, run `pnpm why browserslist` for   │
-│                     │ more information                                       │
+│                     │ ... Found 100 paths, run `pnpm why js-yaml` for more   │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-73wf-gq98-2v4g      │
+│ More info           │ https://github.com/advisories/GHSA-2883-xcg3-v3hh      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-2 vulnerabilities found
-Severity: 2 high
+1 vulnerabilities found
+Severity: 1 high
