@@ -1,28 +1,52 @@
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ js-yaml: maxTotalMergeKeys does not limit CPU use for  │
-│                     │ empty merge sources                                    │
+│ moderate            │ Glob: AbortSignal cancellation bypass allows           │
+│                     │ post-timeout filesystem traversal                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Package             │ js-yaml                                                │
+│ Package             │ glob                                                   │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Vulnerable versions │ >=3.0.0 <3.15.2                                        │
+│ Vulnerable versions │ >=9.0.0 <=14.0.1                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ Patched versions    │ >=3.15.2                                               │
+│ Patched versions    │ >=14.0.2                                               │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
-│                     │ transform>babel-plugin-istanbul>@istanbuljs/load-nyc-  │
-│                     │ config>js-yaml                                         │
+│                     │ transform>babel-plugin-istanbul>test-exclude>glob      │
 │                     │                                                        │
 │                     │ .>jest>@jest/core>@jest/transform>babel-plugin-        │
-│                     │ istanbul>@istanbuljs/load-nyc-config>js-yaml           │
+│                     │ istanbul>test-exclude>glob                             │
 │                     │                                                        │
 │                     │ .>jest>@jest/core>jest-config>babel-jest>@jest/        │
-│                     │ transform>babel-plugin-istanbul>@istanbuljs/load-nyc-  │
-│                     │ config>js-yaml                                         │
+│                     │ transform>babel-plugin-istanbul>test-exclude>glob      │
 │                     │                                                        │
-│                     │ ... Found 100 paths, run `pnpm why js-yaml` for more   │
+│                     │ ... Found 130 paths, run `pnpm why glob` for more      │
 │                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
-│ More info           │ https://github.com/advisories/GHSA-2883-xcg3-v3hh      │
+│ More info           │ https://github.com/advisories/GHSA-3g3m-2fjr-6pw4      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
-1 vulnerabilities found
-Severity: 1 high
+┌─────────────────────┬────────────────────────────────────────────────────────┐
+│ moderate            │ minimatch has potential denial of service via          │
+│                     │ globparts amplification                                │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Package             │ minimatch                                              │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Vulnerable versions │ >=7.0.0 <11.0.1                                        │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Patched versions    │ >=11.0.1                                               │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Paths               │ .>jest>@jest/core>@jest/reporters>@jest/               │
+│                     │ transform>babel-plugin-istanbul>test-                  │
+│                     │ exclude>glob>minimatch                                 │
+│                     │                                                        │
+│                     │ .>jest>@jest/core>@jest/transform>babel-plugin-        │
+│                     │ istanbul>test-exclude>glob>minimatch                   │
+│                     │                                                        │
+│                     │ .>jest>@jest/core>jest-config>babel-jest>@jest/        │
+│                     │ transform>babel-plugin-istanbul>test-                  │
+│                     │ exclude>glob>minimatch                                 │
+│                     │                                                        │
+│                     │ ... Found 200 paths, run `pnpm why minimatch` for more │
+│                     │ information                                            │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-g3hv-75wg-m249      │
+└─────────────────────┴────────────────────────────────────────────────────────┘
+2 vulnerabilities found
+Severity: 2 moderate

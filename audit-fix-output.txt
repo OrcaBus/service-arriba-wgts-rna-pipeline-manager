@@ -1,7 +1,8 @@
-1 overrides were added to pnpm-workspace.yaml to fix vulnerabilities.
+2 overrides were added to pnpm-workspace.yaml to fix vulnerabilities.
 Run "pnpm install" to apply the fixes.
 
 The added overrides:
 {
-  "js-yaml@>=3.0.0 <3.15.2": "^3.15.2"
+  "glob@>=9.0.0 <=14.0.1": "^14.0.2",
+  "minimatch@>=7.0.0 <11.0.1": "^11.0.1"
 }
